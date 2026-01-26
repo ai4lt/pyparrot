@@ -85,19 +85,26 @@ pyparrot configure my-pipeline
 
 This creates an interactive configuration with prompts for:
 - Pipeline type (end2end, cascaded, LT.2025, BOOM)
-- Domain (default: localhost)
-- Port (default: 8001)
+- Domain (default: pyparrot.localhost)
+- Port (default: 8001, internal Traefik port)
+- External port (optional; use when a reverse proxy exposes a different public port)
 - Admin password (for dex OIDC)
 - Website theme (default: default)
 
-Example with options:
+Example with options (public domain, custom external port):
 
 ```bash
 pyparrot configure my-pipeline \
   --type cascaded \
   --domain example.com \
-  --port 8080
+  --port 8001 \
+  --external-port 8443
 ```
+
+Domain/port modes supported:
+- Private/local: pyparrot.localhost:8001 (default; *.localhost resolves to 127.0.0.1)
+- Public direct: your-domain with --port (external port = internal port)
+- Public behind reverse proxy: your-domain with --external-port <public_port>; internal Traefik stays on --port, while OIDC (dex/forward-auth) uses the externally reachable domain:port.
 
 Or use the example configuration:
 

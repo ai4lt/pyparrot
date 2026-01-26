@@ -35,11 +35,12 @@ def main():
     default="end2end",
     help="Configuration type",
 )
-@click.option("--port", type=int, default=8001, help="Port for the configuration")
-@click.option("--domain", default="pyparrot.localhost", help="Domain for the pipeline")
+@click.option("--port", type=int, default=8001, help="Internal port Traefik listens on (mapped from host)")
+@click.option("--external-port", type=int, default=None, help="Externally reachable port (e.g., when behind Nginx). Defaults to --port.")
+@click.option("--domain", default="pyparrot.localhost", help="Domain for the pipeline (use a real domain for public deployments)")
 @click.option("--website-theme", default="defaulttheme", help="Website theme")
 @click.option("--hf-token", default=None, help="HF token for dialog components")
-def configure(config_name, type, port, domain, website_theme, hf_token):
+def configure(config_name, type, port, external_port, domain, website_theme, hf_token):
     """Configure a new pipeline and create its configuration directory."""
     try:
         # Determine config directory
@@ -77,6 +78,8 @@ def configure(config_name, type, port, domain, website_theme, hf_token):
             config_data["website_theme"] = website_theme
         if hf_token:
             config_data["hf_token"] = hf_token
+        if external_port:
+            config_data["external_port"] = external_port
 
         # Prompt for admin password
         click.echo()
@@ -117,6 +120,7 @@ def configure(config_name, type, port, domain, website_theme, hf_token):
                 http_port=port,
                 frontend_theme=website_theme,
                 hf_token=hf_token,
+                external_port=external_port,
                 repo_root=repo_root
             )
             logger.info(f"Generated .env file for docker-compose")

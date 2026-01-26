@@ -71,6 +71,7 @@ class PipelineConfig(BaseModel):
     description: Optional[str] = Field(default=None, description="Pipeline description")
     admin_password: Optional[str] = Field(default=None, description="Admin password")
     domain: str = Field(default="pyparrot.localhost", description="Domain for the pipeline")
+    external_port: Optional[int] = Field(default=None, description="Externally reachable port when behind a reverse proxy")
 
     class Config:
         json_schema_extra = {

@@ -216,7 +216,7 @@ class TemplateManager:
 
     def generate_env_file(self, output_dir: str, pipeline_name: str, domain: str,
                          http_port: int, frontend_theme: str, hf_token: str = None,
-                         repo_root: str = None) -> None:
+                         external_port: int = None, repo_root: str = None) -> None:
         """Generate .env file for docker-compose with environment variables.
         
         Args:
@@ -237,12 +237,16 @@ class TemplateManager:
             # Fallback: calculate from template_dir
             components_dir = str(self.template_dir.parent.parent / "components")
         
+        # Use an externally reachable port if provided (e.g., behind Nginx), otherwise fall back to http_port
+        effective_external_port = external_port if external_port else http_port
         env_file = config_dir / ".env"
         with open(env_file, "w") as f:
             f.write(f"DOMAIN={domain}\n")
             f.write(f"FRONTEND_THEME={frontend_theme}\n")
             f.write(f"HTTP_PORT={http_port}\n")
             f.write(f"DOMAIN_PORT={domain}:{http_port}\n")
+            f.write(f"EXTERNAL_PORT={effective_external_port}\n")
+            f.write(f"EXTERNAL_DOMAIN_PORT={domain}:{effective_external_port}\n")
             f.write(f"PIPELINE_NAME={pipeline_name}\n")
             f.write(f"COMPONENTS_DIR={components_dir}\n")
             f.write(f"HF_TOKEN={hf_token or ''}\n")

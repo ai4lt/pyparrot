@@ -29,7 +29,7 @@ services:
       ${DEX_FILES:-.}/dex/dex.env
     environment:
       HTTP_PORT: "${HTTP_PORT:-8001}"
-      DEX_BASE_URL: "http://${DOMAIN_PORT:-${DOMAIN}}"
+      DEX_BASE_URL: "http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN_PORT:-${DOMAIN}}}"
       DEX_ISSUER: "http://dex:5556"
       TFA_CLIENT_SECRET: "${TFA_CLIENT_SECRET:-bar}"
     volumes:
@@ -57,8 +57,8 @@ services:
       SECRET: "${TFA_SIGNING_SECRET:-XFxy833ngUuK7BgIfIQcot3Jb3H8oHdXrCfTTBCne8E}"
       PROVIDERS_OIDC_CLIENT_ID: traefik-forward-auth
       PROVIDERS_OIDC_CLIENT_SECRET: "${TFA_CLIENT_SECRET:-bar}"
-      PROVIDERS_OIDC_ISSUER_URL: 'http://${DOMAIN}:${HTTP_PORT:-8001}/dex'
-      LOGOUT_REDIRECT: 'http://${DOMAIN_PORT:-${DOMAIN}}/'
+      PROVIDERS_OIDC_ISSUER_URL: 'http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN}:${HTTP_PORT:-8001}}/dex'
+      LOGOUT_REDIRECT: 'http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN}}/'
       LIFETIME: 604800
     extra_hosts:
       - "${DOMAIN}:host-gateway"

@@ -75,3 +75,14 @@ def test_env_file_includes_hf_token():
                              frontend_theme="t", hf_token="secret", repo_root=None)
         content = (out_dir / ".env").read_text()
         assert "HF_TOKEN=secret" in content
+
+
+def test_env_file_external_port_overrides_domain_port():
+    tm = TemplateManager()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_dir = Path(tmpdir)
+        tm.generate_env_file(str(out_dir), pipeline_name="p", domain="example.com", http_port=8001,
+                             frontend_theme="t", hf_token=None, external_port=443, repo_root=None)
+        content = (out_dir / ".env").read_text()
+        assert "EXTERNAL_PORT=443" in content
+        assert "EXTERNAL_DOMAIN_PORT=example.com:443" in content
