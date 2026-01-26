@@ -22,6 +22,8 @@ staticClients:
 - id: traefik-forward-auth
   redirectURIs:
   - {{ getenv "DEX_BASE_URL" }}/_oauth
+  - http://{{ getenv "DOMAIN" }}/_oauth
+  - https://{{ getenv "DOMAIN" }}/_oauth
   name: 'Lecture Translator'
   secret: {{ getenv "TFA_CLIENT_SECRET" }}
 
