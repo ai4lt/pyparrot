@@ -28,6 +28,7 @@ services:
     env_file:
       ${DEX_FILES:-.}/dex/dex.env
     environment:
+      DOMAIN: "${DOMAIN}"
       HTTP_PORT: "${HTTP_PORT:-8001}"
       DEX_BASE_URL: "http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN_PORT:-${DOMAIN}}}"
       DEX_ISSUER: "http://dex:5556"
