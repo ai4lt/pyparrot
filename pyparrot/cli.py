@@ -20,6 +20,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def get_docker_compose_command():
+    """Detect which docker-compose command is available.
+    
+    Returns:
+        list: Command to use (e.g., ['docker', 'compose'] or ['docker-compose'])
+        
+    Raises:
+        RuntimeError: If neither 'docker compose' nor 'docker-compose' is available
+    """
+    # Try 'docker compose' first (newer Docker versions)
+    result = subprocess.run(["docker", "compose", "--version"], capture_output=True)
+    if result.returncode == 0:
+        return ["docker", "compose"]
+    
+    # Fall back to 'docker-compose' (older standalone)
+    result = subprocess.run(["docker-compose", "--version"], capture_output=True)
+    if result.returncode == 0:
+        return ["docker-compose"]
+    
+    # Neither found
+    raise RuntimeError(
+        "Neither 'docker compose' nor 'docker-compose' command found. "
+        "Please install Docker with compose support or docker-compose separately."
+    )
+
+
 @click.group()
 @click.version_option()
 def main():
@@ -218,8 +244,15 @@ def build(config_name, component, no_cache):
             click.echo(click.style(f"Error: docker-compose.yaml not found at {docker_compose_file}", fg="red"), err=True)
             sys.exit(1)
 
+        # Get appropriate docker-compose command
+        try:
+            docker_cmd = get_docker_compose_command()
+        except RuntimeError as e:
+            click.echo(click.style(f"Error: {e}", fg="red"), err=True)
+            sys.exit(1)
+
         # Build command
-        cmd = ["docker-compose", "-f", str(docker_compose_file), "build"]
+        cmd = docker_cmd + ["-f", str(docker_compose_file), "build"]
 
         if no_cache:
             cmd.append("--no-cache")
@@ -278,8 +311,15 @@ def start(config_name, component):
             click.echo(click.style(f"Error: docker-compose.yaml not found at {docker_compose_file}", fg="red"), err=True)
             sys.exit(1)
 
+        # Get appropriate docker-compose command
+        try:
+            docker_cmd = get_docker_compose_command()
+        except RuntimeError as e:
+            click.echo(click.style(f"Error: {e}", fg="red"), err=True)
+            sys.exit(1)
+
         # Start command - use 'up -d' instead of 'start' to create containers if they don't exist
-        cmd = ["docker-compose", "-f", str(docker_compose_file), "up", "-d"]
+        cmd = docker_cmd + ["-f", str(docker_compose_file), "up", "-d"]
 
         # Add specific components if provided
         if component:
@@ -300,7 +340,8 @@ def start(config_name, component):
             
             # Initialize Redis admin group
             click.echo("Initializing Redis admin group...")
-            redis_cmd = ["docker", "compose", "-f", str(config_subdir / "docker-compose.yaml"), 
+            docker_cmd = get_docker_compose_command()
+            redis_cmd = docker_cmd + ["-f", str(config_subdir / "docker-compose.yaml"), 
                         "exec", "-T", "redis", "redis-cli", "sadd", "groups:admin", "admin@example.com"]
             redis_result = subprocess.run(redis_cmd, capture_output=True, text=True)
             
