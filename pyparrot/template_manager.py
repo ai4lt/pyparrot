@@ -186,8 +186,8 @@ class TemplateManager:
             with open(basicauth_file, "w") as f:
                 f.write(basicauth_content)
             
-            # Restrict permissions for security
-            basicauth_file.chmod(0o600)
+            # Set readable permissions (owner rw, group and others read)
+            basicauth_file.chmod(0o644)
             logger.info(f"Generated basicauth file: {basicauth_file}")
 
     def generate_dex_config(self, output_dir: str) -> None:
