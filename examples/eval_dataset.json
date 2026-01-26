@@ -1,0 +1,14 @@
+[
+  {
+    "input": "What is machine learning?",
+    "expected": "Machine learning is a subset of artificial intelligence..."
+  },
+  {
+    "input": "Explain neural networks",
+    "expected": "Neural networks are computational models inspired by biological neurons..."
+  },
+  {
+    "input": "What are the types of learning?",
+    "expected": "There are three main types of learning: supervised, unsupervised, and reinforcement learning..."
+  }
+]

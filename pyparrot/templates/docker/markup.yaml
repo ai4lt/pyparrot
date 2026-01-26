@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  streamingtextstructurer:
+    image: registry.isl.iar.kit.edu/streamingtextstructurer
+    build:
+      dockerfile: Dockerfile
+      context: ${COMPONENTS_DIR}/streamingtextstructurer
+    environment:
+      - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+    command: python -u StreamTextStructurer.py --queue-server kafka --queue-port 9092 --redis-server redis --partitions 10
+    networks:
+      - LTPipeline
+    restart: on-failure
+    depends_on:
+      - qbmediator
+    deploy:
+        replicas: 10
+  streamingsummarizer:
+    image: registry.isl.iar.kit.edu/streamingsummarizer
+    build:
+      dockerfile: Dockerfile
+      context: ${COMPONENTS_DIR}/streamingsummarizer
+    environment:
+      - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+    command: python -u StreamSummarizer.py --queue-server kafka --queue-port 9092 --redis-server redis
+    networks:
+      - LTPipeline
+    restart: on-failure
+    depends_on:
+      - qbmediator
+    deploy:
+        replicas: 5
+  streamingpostproduction:
+    image: registry.isl.iar.kit.edu/streamingpostproduction
+    build:
+      dockerfile: Dockerfile
+      context: ${COMPONENTS_DIR}/streamingpostproduction
+    environment:
+      - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+    command: python -u StreamPostProduction.py --queue-server kafka --queue-port 9092 --redis-server redis
+    networks:
+      - LTPipeline
+    restart: on-failure
+    depends_on:
+      - qbmediator
+    deploy:
+        replicas: 5
+
+networks:
+  LTPipeline: {}

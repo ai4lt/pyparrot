@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  streamingasr:
+    image: registry.isl.iar.kit.edu/streamingasr
+    build: ${COMPONENTS_DIR}/streamingasr
+    depends_on:
+      - qbmediator
+    environment:
+      - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+    command: python -u StreamASR.py --queue-server kafka --queue-port 9092 --redis-server redis --partitions 25
+    networks:
+      - LTPipeline
+    restart: on-failure
+
+networks:
+  LTPipeline: {}

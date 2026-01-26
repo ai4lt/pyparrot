@@ -1,0 +1,3 @@
+"""Test configuration."""
+
+import pytest

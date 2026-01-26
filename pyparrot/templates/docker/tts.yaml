@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  streamingtts:
+    image: registry.isl.iar.kit.edu/streamingtts
+    build: ${COMPONENTS_DIR}/streamingtts
+    depends_on:
+      - qbmediator
+    environment:
+      - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+    command: python -u StreamTTS.py --queue-server kafka --queue-port 9092 --redis-server redis --partitions 10
+    networks:
+      - LTPipeline
+    restart: on-failure
+    deploy:
+        replicas: 10
+
+networks:
+  LTPipeline: {}

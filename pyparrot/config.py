@@ -1,0 +1,158 @@
+"""Configuration management for PyParrot pipelines."""
+
+from typing import Optional, Dict, Any
+from pathlib import Path
+from pydantic import BaseModel, Field
+import yaml
+import getpass
+import bcrypt
+
+
+class SpeechConfig(BaseModel):
+    """Speech component configuration."""
+    model: str = Field(default="whisper", description="Speech model to use")
+    sample_rate: int = Field(default=16000, description="Audio sample rate in Hz")
+    language: str = Field(default="en", description="Language code")
+    device: str = Field(default="cpu", description="Device to run on (cpu/cuda)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "model": "whisper",
+                "sample_rate": 16000,
+                "language": "en",
+                "device": "cpu",
+            }
+        }
+
+
+class LLMConfig(BaseModel):
+    """LLM component configuration."""
+    model: str = Field(default="gpt-3.5-turbo", description="LLM model to use")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=256, description="Maximum tokens to generate")
+    api_key: Optional[str] = Field(default=None, description="API key for the LLM")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "model": "gpt-3.5-turbo",
+                "temperature": 0.7,
+                "max_tokens": 256,
+            }
+        }
+
+
+class DockerConfig(BaseModel):
+    """Docker configuration."""
+    image_name: str = Field(default="pyparrot-pipeline", description="Docker image name")
+    base_image: str = Field(default="python:3.11-slim", description="Base Docker image")
+    port: int = Field(default=8000, description="Port to expose")
+    volumes: Optional[Dict[str, str]] = Field(default=None, description="Volume mappings")
+    environment: Optional[Dict[str, str]] = Field(default=None, description="Environment variables")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "image_name": "pyparrot-pipeline",
+                "base_image": "python:3.11-slim",
+                "port": 8000,
+            }
+        }
+
+
+class PipelineConfig(BaseModel):
+    """Complete pipeline configuration."""
+    name: str = Field(description="Pipeline name")
+    version: str = Field(default="1.0", description="Pipeline version")
+    speech: SpeechConfig = Field(default_factory=SpeechConfig)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    docker: DockerConfig = Field(default_factory=DockerConfig)
+    description: Optional[str] = Field(default=None, description="Pipeline description")
+    admin_password: Optional[str] = Field(default=None, description="Admin password")
+    domain: str = Field(default="pyparrot.localhost", description="Domain for the pipeline")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "my-pipeline",
+                "version": "1.0",
+                "speech": {
+                    "model": "whisper",
+                    "sample_rate": 16000,
+                },
+                "llm": {
+                    "model": "gpt-3.5-turbo",
+                    "temperature": 0.7,
+                },
+                "docker": {
+                    "image_name": "pyparrot-pipeline",
+                    "base_image": "python:3.11-slim",
+                    "port": 8000,
+                },
+            }
+        }
+
+    @classmethod
+    def from_yaml(cls, yaml_path: str) -> "PipelineConfig":
+        """Load configuration from a YAML file.
+        
+        Args:
+            yaml_path: Path to the YAML configuration file
+            
+        Returns:
+            PipelineConfig instance
+        """
+        with open(yaml_path, "r") as f:
+            data = yaml.safe_load(f)
+        return cls(**data)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PipelineConfig":
+        """Create config from dictionary.
+        
+        Args:
+            data: Configuration dictionary
+            
+        Returns:
+            PipelineConfig instance
+        """
+        return cls(**data)
+
+    def to_yaml(self, output_path: str) -> None:
+        """Save configuration to a YAML file.
+        
+        Args:
+            output_path: Path to save the YAML file
+        """
+        with open(output_path, "w") as f:
+            yaml.dump(self.model_dump(), f, default_flow_style=False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config to dictionary.
+        
+        Returns:
+            Configuration as dictionary
+        """
+        return self.model_dump()
+
+    def save_admin_password(self, config_dir: str) -> None:
+        """Save admin password to dex.env file in dex subdirectory with bcrypt encoding.
+        
+        Args:
+            config_dir: Configuration directory path
+        """
+        if not self.admin_password:
+            return
+            
+        dex_dir = Path(config_dir) / "dex"
+        dex_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Encode password using bcrypt
+        password_bytes = self.admin_password.encode('utf-8')
+        hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=10)).decode('utf-8')
+        
+        env_file = dex_dir / "dex.env"
+        with open(env_file, "w") as f:
+            f.write(f"ADMIN_PASSHASH='{hashed_password}'\n")
+        env_file.chmod(0o600)  # Restrict permissions for security

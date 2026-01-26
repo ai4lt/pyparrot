@@ -1,0 +1,25 @@
+name: example-pipeline
+version: "1.0"
+description: Example speech-to-LLM pipeline
+
+components:
+  speech:
+    model: whisper
+    sample_rate: 16000
+    language: en
+    device: cpu
+
+  llm:
+    model: gpt-3.5-turbo
+    temperature: 0.7
+    max_tokens: 256
+
+docker:
+  image_name: pyparrot-example
+  base_image: python:3.11-slim
+  port: 8000
+  volumes:
+    /data: /app/data
+  environment:
+    LOG_LEVEL: INFO
+    DEBUG: "false"

@@ -1,0 +1,18 @@
+defaultEntryPoints:
+  - 'http'
+
+api:
+  # Port for the status page
+  dashboard: true
+
+entryPoints:
+  http:
+    address: ':80'
+
+providers:
+  docker:
+    watch: true
+    exposedByDefault: false
+    # match this with the value of $PIPELINE_NAME when not running as `main`
+    constraints: "Label(`pipeline`,`CONFIG_NAME`)"
+

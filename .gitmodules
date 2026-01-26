@@ -1,0 +1,45 @@
+[submodule "components/qbmediator"]
+	path = components/qbmediator
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/qbmediator.git
+[submodule "components/lt_api"]
+	path = components/lt_api
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/lt_api.git
+[submodule "components/lt_api_stream"]
+	path = components/lt_api_stream
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/lt_api_stream.git
+[submodule "components/ltfrontend"]
+	path = components/ltfrontend
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/ltfrontend.git
+[submodule "components/lt-archive"]
+	path = components/lt-archive
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/lt-archive.git
+[submodule "components/loggingwoker"]
+	path = components/loggingwoker
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/loggingwoker.git
+[submodule "components/streamingasr"]
+	path = components/streamingasr
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/streamingasr.git
+[submodule "components/components/streamingasr"]
+	path = components/components/streamingasr
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/streamingmt.git
+[submodule "components/streamingmt"]
+	path = components/streamingmt
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/streamingmt.git
+[submodule "components/streamingtts"]
+	path = components/streamingtts
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/streamingtts.git
+[submodule "components/streamingtextstructurer"]
+	path = components/streamingtextstructurer
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/streamingtextstructurer.git
+[submodule "components/streamingsummarizer"]
+	path = components/streamingsummarizer
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/streamingsummarizer.git
+[submodule "components/streamingpostproduction"]
+	path = components/streamingpostproduction
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/streamingpostproduction.git
+[submodule "components/dialog/bot"]
+	path = components/dialog/bot
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/bot.git
+[submodule "components/dialog/kitmeetingbutler"]
+	path = components/dialog/kitmeetingbutler
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/dialog/kitmeetingbutler.git

@@ -1,0 +1,20 @@
+# Core dependencies
+click>=8.1.0
+pydantic>=2.0.0
+pyyaml>=6.0
+docker>=6.0.0
+python-dotenv>=1.0.0
+bcrypt>=4.0.0
+
+# Optional speech component
+openai-whisper>=20230314
+
+# Optional LLM component
+openai>=1.0.0
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# pytest-cov>=4.0.0
+# black>=23.0.0
+# flake8>=6.0.0
+# mypy>=1.0.0

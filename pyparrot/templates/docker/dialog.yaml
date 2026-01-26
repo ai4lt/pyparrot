@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  bot:
+    image: registry.isl.iar.kit.edu/bot
+    build:
+      dockerfile: Dockerfile
+      context: ${COMPONENTS_DIR}/dialog/bot
+    command: python -u server.py --queue-server kafka --queue-port 9092 --redis-server redis
+    networks:
+      - LTPipeline
+    environment:
+      - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+      - DEBUG=True
+      - HF_TOKEN=${HF_TOKEN:-}
+    restart: on-failure
+    depends_on:
+      - qbmediator
+    volumes:
+      - archive:/logs/archive
+
+  kitmeetingbutler:
+    image: registry.isl.iar.kit.edu/kitmeetingbutler
+    build:
+      dockerfile: Dockerfile
+      context: ${COMPONENTS_DIR}/dialog/kitmeetingbutler
+    command: python -u KITMeetingButler.py --queue-server kafka --queue-port 9092 --redis-server redis
+    networks:
+      - LTPipeline
+    environment:
+      - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+      - DEBUG=True
+      - HF_TOKEN=${HF_TOKEN:-}
+    restart: on-failure
+    depends_on:
+      - qbmediator
+
+networks:
+  LTPipeline: {}
