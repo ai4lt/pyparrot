@@ -293,6 +293,17 @@ def start(config_name, component):
 
         if result.returncode == 0:
             click.echo(click.style("✓ Successfully started Docker containers", fg="green"))
+            
+            # Initialize Redis admin group
+            click.echo("Initializing Redis admin group...")
+            redis_cmd = ["docker", "compose", "-f", str(config_subdir / "docker-compose.yaml"), 
+                        "exec", "-T", "redis", "redis-cli", "sadd", "groups:admin", "admin@example.com"]
+            redis_result = subprocess.run(redis_cmd, capture_output=True, text=True)
+            
+            if redis_result.returncode == 0:
+                click.echo(click.style("✓ Redis admin group initialized", fg="green"))
+            else:
+                click.echo(click.style(f"⚠ Warning: Could not initialize Redis admin group: {redis_result.stderr}", fg="yellow"))
         else:
             click.echo(click.style(f"✗ Start failed with exit code {result.returncode}", fg="red"), err=True)
             sys.exit(result.returncode)
