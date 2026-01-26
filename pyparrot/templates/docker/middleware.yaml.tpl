@@ -60,9 +60,9 @@ services:
       PROVIDERS_OIDC_ISSUER_URL: 'http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN}:${HTTP_PORT:-8001}}/dex'
       LOGOUT_REDIRECT: 'http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN}}/'
       LIFETIME: 604800
-    extra_hosts:
+    {% if IS_LOCALHOST_DOMAIN %}extra_hosts:
       - "${DOMAIN}:host-gateway"
-    volumes:
+    {% endif %}volumes:
       - './traefik/rules.ini:/auth-rules.ini:ro'
     networks:
       - LTPipeline

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 import yaml
 import logging
+from jinja2 import Template
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +36,18 @@ class TemplateManager:
         Returns:
             Path to the template file
         """
+        # Check for .tpl version first
+        tpl_path = self.template_dir / f"{component}.yaml.tpl"
+        if tpl_path.exists():
+            return tpl_path
         return self.template_dir / f"{component}.yaml"
 
-    def load_template(self, component: str) -> Dict[str, Any]:
+    def load_template(self, component: str, domain: str = None) -> Dict[str, Any]:
         """Load a single template file.
         
         Args:
             component: Component name
+            domain: Domain name (used for conditional rendering)
             
         Returns:
             Parsed YAML template as dictionary
@@ -51,13 +57,24 @@ class TemplateManager:
             raise FileNotFoundError(f"Template not found: {template_path}")
         
         with open(template_path, "r") as f:
-            return yaml.safe_load(f)
+            content = f.read()
+        
+        # If it's a .tpl file, render it with Jinja2
+        if template_path.suffix == ".tpl":
+            # Determine if it's a localhost domain
+            is_localhost = domain and ".localhost" in domain
+            
+            template = Template(content)
+            content = template.render(IS_LOCALHOST_DOMAIN=is_localhost)
+        
+        return yaml.safe_load(content)
 
-    def merge_templates(self, components: List[str]) -> Dict[str, Any]:
+    def merge_templates(self, components: List[str], domain: str = None) -> Dict[str, Any]:
         """Merge multiple component templates into a single docker-compose file.
         
         Args:
             components: List of component names to merge
+            domain: Domain name (used for conditional rendering)
             
         Returns:
             Merged docker-compose configuration
@@ -66,11 +83,11 @@ class TemplateManager:
             raise ValueError("At least one component must be specified")
 
         # Load base template from first component
-        merged = self.load_template(components[0])
+        merged = self.load_template(components[0], domain)
         
         # Merge remaining components
         for component in components[1:]:
-            template = self.load_template(component)
+            template = self.load_template(component, domain)
             self._merge_services(merged, template)
         
         logger.info(f"Merged templates for components: {', '.join(components)}")
@@ -95,11 +112,12 @@ class TemplateManager:
                 if network_name not in base["networks"]:
                     base["networks"][network_name] = network_config
 
-    def generate_compose_file(self, pipeline_type: str) -> Dict[str, Any]:
+    def generate_compose_file(self, pipeline_type: str, domain: str = None) -> Dict[str, Any]:
         """Generate docker-compose configuration for a pipeline type.
         
         Args:
             pipeline_type: Type of pipeline (end2end, cascaded, etc.)
+            domain: Domain name (used for conditional rendering)
             
         Returns:
             Complete docker-compose configuration
@@ -108,7 +126,7 @@ class TemplateManager:
             raise ValueError(f"Unknown pipeline type: {pipeline_type}")
         
         components = self.PIPELINE_TEMPLATES[pipeline_type]
-        return self.merge_templates(components)
+        return self.merge_templates(components, domain)
 
     def save_compose_file(self, compose_config: Dict[str, Any], output_path: str) -> None:
         """Save docker-compose configuration to file.

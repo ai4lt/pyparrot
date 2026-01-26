@@ -127,7 +127,7 @@ def configure(config_name, type, port, external_port, domain, website_theme, hf_
         # Generate and save docker-compose file
         template_manager = TemplateManager()
         try:
-            compose_config = template_manager.generate_compose_file(type)
+            compose_config = template_manager.generate_compose_file(type, domain=domain)
             compose_file = config_subdir / "docker-compose.yaml"
             template_manager.save_compose_file(compose_config, str(compose_file))
             logger.info(f"Generated docker-compose file: {compose_file}")

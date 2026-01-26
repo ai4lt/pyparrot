@@ -11,6 +11,21 @@ CLI tool for managing Docker pipelines of speech and LLM components.
 
 ## Installation
 
+### Clone Repository
+
+PyParrot uses Git submodules for component dependencies. Clone the repository and initialize submodules:
+
+```bash
+# Clone the repository
+git clone https://github.com/ai4lt/pyparrot.git
+cd pyparrot
+
+# Initialize and update submodules
+git submodule update --init --recursive
+```
+
+### Install PyParrot
+
 ```bash
 pip install -e .
 ```

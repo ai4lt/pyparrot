@@ -7,9 +7,9 @@ from pathlib import Path
 from pyparrot.template_manager import TemplateManager
 
 
-def _services_for(pipeline_type: str):
+def _services_for(pipeline_type: str, domain: str = "pyparrot.localhost"):
     tm = TemplateManager()
-    return tm.generate_compose_file(pipeline_type).get("services", {})
+    return tm.generate_compose_file(pipeline_type, domain=domain).get("services", {})
 
 
 def test_end2end_pipeline_services_subset():
@@ -86,3 +86,19 @@ def test_env_file_external_port_overrides_domain_port():
         content = (out_dir / ".env").read_text()
         assert "EXTERNAL_PORT=443" in content
         assert "EXTERNAL_DOMAIN_PORT=example.com:443" in content
+
+
+def test_localhost_domain_includes_extra_hosts():
+    """Localhost domains should include extra_hosts mapping for traefik-forward-auth."""
+    services = _services_for("end2end", domain="pyparrot.localhost")
+    tfa_service = services.get("traefik-forward-auth")
+    assert tfa_service is not None, "traefik-forward-auth service not found"
+    assert "extra_hosts" in tfa_service, "extra_hosts should be present for localhost domain"
+
+
+def test_real_domain_excludes_extra_hosts():
+    """Real domains should not include extra_hosts mapping for traefik-forward-auth."""
+    services = _services_for("end2end", domain="example.com")
+    tfa_service = services.get("traefik-forward-auth")
+    assert tfa_service is not None, "traefik-forward-auth service not found"
+    assert "extra_hosts" not in tfa_service, "extra_hosts should not be present for real domain"
