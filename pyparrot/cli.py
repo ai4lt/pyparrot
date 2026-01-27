@@ -189,46 +189,7 @@ def configure(config_name, type, port, external_port, domain, website_theme, hf_
         if website_theme:
             click.echo(f"  Website Theme: {website_theme}")
         if admin_password:
-        @main.command()
-        @click.argument("config_name")
-        def delete(config_name):
-            """Delete (down) all Docker containers for a pipeline configuration."""
-            try:
-                # Determine config directory
-                config_dir = os.getenv("PYPARROT_CONFIG_DIR")
-                if not config_dir:
-                    config_dir = Path(__file__).parent.parent / "config"
-                else:
-                    config_dir = Path(config_dir)
-
-                config_subdir = config_dir / config_name
-
-                if not config_subdir.exists():
-                    click.echo(click.style(f"Error: Configuration '{config_name}' not found at {config_subdir}", fg="red"), err=True)
-                    sys.exit(1)
-
-                docker_compose_file = config_subdir / "docker-compose.yaml"
-                if not docker_compose_file.exists():
-                    click.echo(click.style(f"Error: docker-compose.yaml not found at {docker_compose_file}", fg="red"), err=True)
-                    sys.exit(1)
-
-                docker_cmd = get_docker_compose_command()
-                cmd = docker_cmd + ["-f", str(docker_compose_file), "down"]
-
-                click.echo(click.style(f"Deleting Docker containers for pipeline: {config_name}", fg="cyan", bold=True))
-                click.echo(f"Config directory: {config_subdir}")
-
-                result = subprocess.run(cmd, cwd=str(config_subdir), capture_output=False)
-
-                if result.returncode == 0:
-                    click.echo(click.style("✓ Successfully deleted Docker containers", fg="green"))
-                else:
-                    click.echo(click.style(f"✗ Delete failed with exit code {result.returncode}", fg="red"), err=True)
-                    sys.exit(result.returncode)
-
-            except Exception as e:
-                click.echo(click.style(f"Error: {e}", fg="red"), err=True)
-                sys.exit(1)
+            click.echo("  Admin password: set")
 
             click.echo(f"  Admin Password: {'*' * len(admin_password)}")
 
@@ -460,6 +421,48 @@ def stop(config_name, component):
             click.echo(click.style("✓ Successfully stopped Docker containers", fg="green"))
         else:
             click.echo(click.style(f"✗ Stop failed with exit code {result.returncode}", fg="red"), err=True)
+            sys.exit(result.returncode)
+
+    except Exception as e:
+        click.echo(click.style(f"Error: {e}", fg="red"), err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("config_name")
+def delete(config_name):
+    """Delete (down) all Docker containers for a pipeline configuration."""
+    try:
+        # Determine config directory
+        config_dir = os.getenv("PYPARROT_CONFIG_DIR")
+        if not config_dir:
+            config_dir = Path(__file__).parent.parent / "config"
+        else:
+            config_dir = Path(config_dir)
+
+        config_subdir = config_dir / config_name
+
+        if not config_subdir.exists():
+            click.echo(click.style(f"Error: Configuration '{config_name}' not found at {config_subdir}", fg="red"), err=True)
+            sys.exit(1)
+
+        docker_compose_file = config_subdir / "docker-compose.yaml"
+        if not docker_compose_file.exists():
+            click.echo(click.style(f"Error: docker-compose.yaml not found at {docker_compose_file}", fg="red"), err=True)
+            sys.exit(1)
+
+        docker_cmd = get_docker_compose_command()
+        cmd = docker_cmd + ["-f", str(docker_compose_file), "down"]
+
+        click.echo(click.style(f"Deleting Docker containers for pipeline: {config_name}", fg="cyan", bold=True))
+        click.echo(f"Config directory: {config_subdir}")
+
+        result = subprocess.run(cmd, cwd=str(config_subdir), capture_output=False)
+
+        if result.returncode == 0:
+            click.echo(click.style("✓ Successfully deleted Docker containers", fg="green"))
+        else:
+            click.echo(click.style(f"✗ Delete failed with exit code {result.returncode}", fg="red"), err=True)
             sys.exit(result.returncode)
 
     except Exception as e:
