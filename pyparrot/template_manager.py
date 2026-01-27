@@ -234,7 +234,9 @@ class TemplateManager:
 
     def generate_env_file(self, output_dir: str, pipeline_name: str, domain: str,
                          http_port: int, frontend_theme: str, hf_token: str = None,
-                         external_port: int = None, repo_root: str = None) -> None:
+                         external_port: int = None, repo_root: str = None,
+                         backends: str = "local", stt_backend_url: str = None,
+                         mt_backend_url: str = None) -> None:
         """Generate .env file for docker-compose with environment variables.
         
         Args:
@@ -244,6 +246,9 @@ class TemplateManager:
             http_port: HTTP port number
             frontend_theme: Frontend theme name
             repo_root: Absolute path to repository root (contains components dir)
+            backends: Backend integration mode (local, distributed, external)
+            stt_backend_url: External STT backend URL
+            mt_backend_url: External MT backend URL
         """
         config_dir = Path(output_dir)
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -268,6 +273,9 @@ class TemplateManager:
             f.write(f"PIPELINE_NAME={pipeline_name}\n")
             f.write(f"COMPONENTS_DIR={components_dir}\n")
             f.write(f"HF_TOKEN={hf_token or ''}\n")
-        
-        logger.info(f"Generated .env file: {env_file}")
+            f.write(f"BACKENDS={backends}\n")
+            if stt_backend_url:
+                f.write(f"STT_BACKEND_URL={stt_backend_url}\n")
+            if mt_backend_url:
+                f.write(f"MT_BACKEND_URL={mt_backend_url}\n")
 

@@ -1,6 +1,6 @@
 """Configuration management for PyParrot pipelines."""
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 from pydantic import BaseModel, Field
 import yaml
@@ -65,6 +65,10 @@ class PipelineConfig(BaseModel):
     """Complete pipeline configuration."""
     name: str = Field(description="Pipeline name")
     version: str = Field(default="1.0", description="Pipeline version")
+    backends: str = Field(default="local", description="Backend integration mode: local, distributed, or external")
+    backend_components: List[str] = Field(default_factory=list, description="Required backend components for this pipeline type")
+    stt_backend_url: Optional[str] = Field(default=None, description="External backend URL for speech-to-text (used when backends=external)")
+    mt_backend_url: Optional[str] = Field(default=None, description="External backend URL for machine translation (used when backends=external)")
     speech: SpeechConfig = Field(default_factory=SpeechConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     docker: DockerConfig = Field(default_factory=DockerConfig)
