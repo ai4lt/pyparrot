@@ -398,7 +398,8 @@ def stop(config_name, component):
             sys.exit(1)
 
         # Stop command
-        cmd = ["docker-compose", "-f", str(docker_compose_file), "stop"]
+        docker_cmd = get_docker_compose_command()
+        cmd = docker_cmd + ["-f", str(docker_compose_file), "stop"]
 
         # Add specific components if provided
         if component:
