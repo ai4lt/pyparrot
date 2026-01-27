@@ -6,6 +6,7 @@ import os
 import sys
 import getpass
 import subprocess
+import time
 from pathlib import Path
 from .config import PipelineConfig
 from .pipeline import Pipeline
@@ -18,6 +19,25 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def check_docker_daemon():
+    """Check if Docker daemon is running and accessible.
+    
+    Returns:
+        bool: True if Docker daemon is accessible
+        
+    Raises:
+        RuntimeError: If Docker daemon is not accessible
+    """
+    result = subprocess.run(["docker", "ps"], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Docker daemon is not responding. Please ensure Docker is running.\n"
+            "On macOS, you can start Docker with: open -a Docker\n"
+            f"Error: {result.stderr}"
+        )
+    return True
 
 
 def get_docker_compose_command():
@@ -46,6 +66,37 @@ def get_docker_compose_command():
     )
 
 
+def run_with_retry(cmd, max_retries=3, delay=2):
+    """Run a command with retry logic for transient failures.
+    
+    Args:
+        cmd: Command list to execute
+        max_retries: Number of times to retry on failure
+        delay: Delay in seconds between retries
+        
+    Returns:
+        subprocess.CompletedProcess: Result of successful command execution
+        
+    Raises:
+        RuntimeError: If command fails after all retries
+    """
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            result = subprocess.run(cmd, capture_output=False, text=True)
+            if result.returncode == 0:
+                return result
+            last_error = f"Exit code {result.returncode}"
+        except Exception as e:
+            last_error = str(e)
+        
+        if attempt < max_retries - 1:
+            click.echo(f"Attempt {attempt + 1}/{max_retries} failed. Retrying in {delay}s...")
+            time.sleep(delay)
+    
+    raise RuntimeError(f"Command failed after {max_retries} attempts: {last_error}")
+
+
 @click.group()
 @click.version_option()
 def main():
@@ -61,14 +112,26 @@ def main():
     default="end2end",
     help="Configuration type",
 )
+@click.option(
+    "--backends",
+    type=click.Choice(["local", "distributed", "external"]),
+    default="local",
+    help="Backend integration mode",
+)
+@click.option("--stt-backend-url", default=None, help="External STT backend URL (when backends=external)")
+@click.option("--mt-backend-url", default=None, help="External MT backend URL (when backends=external)")
 @click.option("--port", type=int, default=8001, help="Internal port Traefik listens on (mapped from host)")
 @click.option("--external-port", type=int, default=None, help="Externally reachable port (e.g., when behind Nginx). Defaults to --port.")
 @click.option("--domain", default="pyparrot.localhost", help="Domain for the pipeline (use a real domain for public deployments)")
 @click.option("--website-theme", default="defaulttheme", help="Website theme")
 @click.option("--hf-token", default=None, help="HF token for dialog components")
-def configure(config_name, type, port, external_port, domain, website_theme, hf_token):
+def configure(config_name, type, backends, stt_backend_url, mt_backend_url, port, external_port, domain, website_theme, hf_token):
     """Configure a new pipeline and create its configuration directory."""
     try:
+        backend_defaults = {
+            "end2end": ["stt"],
+            "cascaded": ["stt", "mt"],
+        }
         # Determine config directory
         config_dir = os.getenv("PYPARROT_CONFIG_DIR")
         if not config_dir:
@@ -96,7 +159,11 @@ def configure(config_name, type, port, external_port, domain, website_theme, hf_
         config_data = {
             "name": config_name,
             "type": type,
+            "backends": backends,
             "domain": domain,
+            "backend_components": backend_defaults.get(type, []),
+            "stt_backend_url": stt_backend_url,
+            "mt_backend_url": mt_backend_url,
         }
         if port:
             config_data["port"] = port
@@ -147,7 +214,10 @@ def configure(config_name, type, port, external_port, domain, website_theme, hf_
                 frontend_theme=website_theme,
                 hf_token=hf_token,
                 external_port=external_port,
-                repo_root=repo_root
+                repo_root=repo_root,
+                backends=backends,
+                stt_backend_url=stt_backend_url,
+                mt_backend_url=mt_backend_url
             )
             logger.info(f"Generated .env file for docker-compose")
         except Exception as e:
@@ -183,6 +253,13 @@ def configure(config_name, type, port, external_port, domain, website_theme, hf_
         click.echo(click.style("Pipeline Configuration:", fg="cyan", bold=True))
         click.echo(f"  Name: {config_name}")
         click.echo(f"  Type: {type}")
+        click.echo(f"  Backends: {backends}")
+        if config_data.get("backend_components"):
+            click.echo(f"  Required backend components: {', '.join(config_data['backend_components'])}")
+        if stt_backend_url:
+            click.echo(f"  STT backend URL: {stt_backend_url}")
+        if mt_backend_url:
+            click.echo(f"  MT backend URL: {mt_backend_url}")
         click.echo(f"  Domain: {domain}")
         if port:
             click.echo(f"  Port: {port}")
@@ -228,6 +305,13 @@ def configure(config_name, type, port, external_port, domain, website_theme, hf_
 def build(config_name, component, no_cache):
     """Build Docker images for a pipeline configuration using docker-compose."""
     try:
+        # Check Docker daemon is running
+        try:
+            check_docker_daemon()
+        except RuntimeError as e:
+            click.echo(click.style(f"Error: {e}", fg="red"), err=True)
+            sys.exit(1)
+        
         # Determine config directory
         config_dir = os.getenv("PYPARROT_CONFIG_DIR")
         if not config_dir:
@@ -295,6 +379,13 @@ def build(config_name, component, no_cache):
 def start(config_name, component):
     """Start Docker containers for a pipeline configuration using docker-compose."""
     try:
+        # Check Docker daemon is running
+        try:
+            check_docker_daemon()
+        except RuntimeError as e:
+            click.echo(click.style(f"Error: {e}", fg="red"), err=True)
+            sys.exit(1)
+        
         # Determine config directory
         config_dir = os.getenv("PYPARROT_CONFIG_DIR")
         if not config_dir:
@@ -334,11 +425,19 @@ def start(config_name, component):
         else:
             click.echo("Components: all")
 
-        # Run docker-compose start
-        result = subprocess.run(cmd, cwd=str(config_subdir), capture_output=False)
+        # Run docker-compose start with retry logic
+        try:
+            result = subprocess.run(cmd, cwd=str(config_subdir), capture_output=False)
+        except Exception as e:
+            click.echo(click.style(f"Error starting containers: {e}", fg="red"), err=True)
+            sys.exit(1)
 
         if result.returncode == 0:
             click.echo(click.style("✓ Successfully started Docker containers", fg="green"))
+            
+            # Wait for services to be ready (especially ltapi and redis)
+            click.echo("Waiting for services to be ready...")
+            time.sleep(3)
             
             # Initialize Redis admin group
             click.echo("Initializing Redis groups...")
@@ -361,6 +460,58 @@ def start(config_name, component):
                     click.echo(click.style(f"⚠ Warning: Could not initialize Redis admin group: {admin_result.stderr}", fg="yellow"))
                 if presenter_result.returncode != 0:
                     click.echo(click.style(f"⚠ Warning: Could not initialize Redis presenter group: {presenter_result.stderr}", fg="yellow"))
+            
+            # Register external backends if configured
+            env_file = config_subdir / ".env"
+            click.echo(f"[DEBUG] Checking for .env file at: {env_file}")
+            if env_file.exists():
+                click.echo(f"[DEBUG] .env file found, reading configuration...")
+                from dotenv import dotenv_values
+                env_vars = dotenv_values(env_file)
+                backends_mode = env_vars.get("BACKENDS", "local")
+                stt_url = env_vars.get("STT_BACKEND_URL")
+                mt_url = env_vars.get("MT_BACKEND_URL")
+                
+                click.echo(f"[DEBUG] backends_mode: {backends_mode}, stt_url: {stt_url}, mt_url: {mt_url}")
+                
+                if backends_mode == "external":
+                    click.echo("Registering external backends...")
+                    
+                    # Register STT backend
+                    if stt_url:
+                        stt_cmd = docker_cmd + [
+                            "-f", str(config_subdir / "docker-compose.yaml"),
+                            "exec", "-T", "ltapi", "curl", "-s",
+                            "-H", "Content-Type: application/json",
+                            "http://ltapi:5000/ltapi/register_worker",
+                            "-d", f'{{"component": "asr", "name": "stt", "server": "{stt_url}"}}'
+                        ]
+                        stt_result = subprocess.run(stt_cmd, capture_output=True, text=True)
+                        click.echo(f"STT registration response: {stt_result.stdout} (exit: {stt_result.returncode})")
+                        if stt_result.returncode == 0:
+                            click.echo(click.style(f"✓ STT backend registered: {stt_url}", fg="green"))
+                        else:
+                            click.echo(click.style(f"⚠ Warning: Could not register STT backend: {stt_result.stderr}", fg="yellow"))
+                    
+                    # Register MT backend
+                    if mt_url:
+                        mt_cmd = docker_cmd + [
+                            "-f", str(config_subdir / "docker-compose.yaml"),
+                            "exec", "-T", "ltapi", "curl", "-s",
+                            "-H", "Content-Type: application/json",
+                            "http://ltapi:5000/ltapi/register_worker",
+                            "-d", f'{{"component": "mt", "name": "mt", "server": "{mt_url}"}}'
+                        ]
+                        mt_result = subprocess.run(mt_cmd, capture_output=True, text=True)
+                        click.echo(f"MT registration response: {mt_result.stdout} (exit: {mt_result.returncode})")
+                        if mt_result.returncode == 0:
+                            click.echo(click.style(f"✓ MT backend registered: {mt_url}", fg="green"))
+                        else:
+                            click.echo(click.style(f"⚠ Warning: Could not register MT backend: {mt_result.stderr}", fg="yellow"))
+                else:
+                    click.echo(f"[DEBUG] backends_mode is '{backends_mode}', not 'external', skipping backend registration")
+            else:
+                click.echo(f"[DEBUG] .env file not found at {env_file}")
         else:
             click.echo(click.style(f"✗ Start failed with exit code {result.returncode}", fg="red"), err=True)
             sys.exit(result.returncode)
@@ -431,7 +582,7 @@ def stop(config_name, component):
 @main.command()
 @click.argument("config_name")
 def delete(config_name):
-    """Delete (down) all Docker containers for a pipeline configuration."""
+    """Delete (down) all Docker containers and volumes for a pipeline configuration."""
     try:
         # Determine config directory
         config_dir = os.getenv("PYPARROT_CONFIG_DIR")
@@ -452,15 +603,15 @@ def delete(config_name):
             sys.exit(1)
 
         docker_cmd = get_docker_compose_command()
-        cmd = docker_cmd + ["-f", str(docker_compose_file), "down"]
+        cmd = docker_cmd + ["-f", str(docker_compose_file), "down", "-v"]
 
-        click.echo(click.style(f"Deleting Docker containers for pipeline: {config_name}", fg="cyan", bold=True))
+        click.echo(click.style(f"Deleting Docker containers and volumes for pipeline: {config_name}", fg="cyan", bold=True))
         click.echo(f"Config directory: {config_subdir}")
 
         result = subprocess.run(cmd, cwd=str(config_subdir), capture_output=False)
 
         if result.returncode == 0:
-            click.echo(click.style("✓ Successfully deleted Docker containers", fg="green"))
+            click.echo(click.style("✓ Successfully deleted Docker containers and volumes", fg="green"))
         else:
             click.echo(click.style(f"✗ Delete failed with exit code {result.returncode}", fg="red"), err=True)
             sys.exit(result.returncode)
