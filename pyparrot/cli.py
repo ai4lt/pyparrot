@@ -478,7 +478,7 @@ def start(config_name, component):
                 if presenter_result.returncode != 0:
                     click.echo(click.style(f"⚠ Warning: Could not initialize Redis presenter group: {presenter_result.stderr}", fg="yellow"))
             
-            # Register external backends if configured
+            # Register backends if configured
             env_file = config_subdir / ".env"
             click.echo(f"[DEBUG] Checking for .env file at: {env_file}")
             if env_file.exists():
@@ -491,8 +491,8 @@ def start(config_name, component):
                 
                 click.echo(f"[DEBUG] backends_mode: {backends_mode}, stt_url: {stt_url}, mt_url: {mt_url}")
                 
-                if backends_mode == "external":
-                    click.echo("Registering external backends...")
+                if stt_url or mt_url:
+                    click.echo(f"Registering backends ({backends_mode} mode)...")
                     
                     # Register STT backend
                     if stt_url:
@@ -526,7 +526,7 @@ def start(config_name, component):
                         else:
                             click.echo(click.style(f"⚠ Warning: Could not register MT backend: {mt_result.stderr}", fg="yellow"))
                 else:
-                    click.echo(f"[DEBUG] backends_mode is '{backends_mode}', not 'external', skipping backend registration")
+                    click.echo(f"[DEBUG] No backend URLs configured, skipping backend registration")
             else:
                 click.echo(f"[DEBUG] .env file not found at {env_file}")
         else:
