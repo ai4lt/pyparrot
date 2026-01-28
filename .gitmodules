@@ -43,3 +43,6 @@
 [submodule "components/dialog/kitmeetingbutler"]
 	path = components/dialog/kitmeetingbutler
 	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/dialog/kitmeetingbutler.git
+[submodule "backends/faster-whisper"]
+	path = backends/faster-whisper
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/inference/faster-whisper.git
