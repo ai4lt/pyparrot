@@ -58,8 +58,6 @@ services:
       PROVIDERS_OIDC_ISSUER_URL: http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN}:${HTTP_PORT:-8001}}/dex
       LOGOUT_REDIRECT: http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN}}/
       LIFETIME: 604800
-      COOKIE_DOMAIN: ${DOMAIN}
-      INSECURE_COOKIE: 'true'
     extra_hosts:
     - ${DOMAIN}:host-gateway
     volumes:
@@ -279,23 +277,18 @@ services:
     - /etc/localtime:/etc/localtime:ro
     - /var/run/docker.sock:/var/run/docker.sock
     restart: always
-  whisper-worker:
-    build: ${BACKENDS_DIR}/faster-whisper
-    deploy:
-      resources:
-        reservations:
-          devices:
-          - driver: nvidia
-            count: all
-            capabilities:
-            - gpu
+  streamingmt:
+    image: registry.isl.iar.kit.edu/streamingmt
+    build: ${COMPONENTS_DIR}/streamingmt
+    depends_on:
+    - qbmediator
     environment:
-      CUDA_VISIBLE_DEVICES: '0'
-    volumes:
-    - cache:/cache
-    restart: on-failure
+    - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+    command: python -u StreamMT.py --queue-server kafka --queue-port 9092 --redis-server
+      redis --partitions 25
     networks:
     - LTPipeline
+    restart: on-failure
 networks:
   LTPipeline: {}
 volumes:

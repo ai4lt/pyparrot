@@ -113,7 +113,7 @@ class TemplateManager:
                     base["networks"][network_name] = network_config
 
     def generate_compose_file(self, pipeline_type: str, domain: str = None, backends_mode: str = "local", 
-                             asr_backend_engine: str = "faster-whisper", asr_backend_gpu: str = None,
+                             stt_backend_engine: str = "faster-whisper", stt_backend_gpu: str = None,
                              repo_root: str = None) -> Dict[str, Any]:
         """Generate docker-compose configuration for a pipeline type.
         
@@ -121,8 +121,8 @@ class TemplateManager:
             pipeline_type: Type of pipeline (end2end, cascaded, etc.)
             domain: Domain name (used for conditional rendering)
             backends_mode: Backend integration mode (local, distributed, external)
-            asr_backend_engine: ASR backend engine (e.g., faster-whisper)
-            asr_backend_gpu: GPU device ID for local/distributed backends
+            stt_backend_engine: STT backend engine (e.g., faster-whisper)
+            stt_backend_gpu: GPU device ID for local/distributed backends
             repo_root: Repository root path for locating backend services
             
         Returns:
@@ -136,7 +136,7 @@ class TemplateManager:
         
         # Add backend services for local/distributed modes
         if backends_mode in ["local", "distributed"]:
-            backend_compose = self._load_backend_compose(asr_backend_engine, asr_backend_gpu, repo_root)
+            backend_compose = self._load_backend_compose(stt_backend_engine, stt_backend_gpu, repo_root)
             if backend_compose:
                 self._merge_services(composed, backend_compose)
         
@@ -171,15 +171,38 @@ class TemplateManager:
         with open(backend_path, "r") as f:
             backend_config = yaml.safe_load(f)
         
-        # Modify GPU settings if provided
-        if gpu_device is not None:
-            # Replace CUDA_VISIBLE_DEVICES environment variable
-            if "services" in backend_config:
-                for service in backend_config["services"].values():
+        # Modify backend services for integration
+        if "services" in backend_config:
+            for service_name, service in backend_config["services"].items():
+                # Update build path to use BACKENDS_DIR
+                if "build" in service and service["build"] == ".":
+                    if repo_root:
+                        service["build"] = "${BACKENDS_DIR}/faster-whisper"
+                    else:
+                        service["build"] = str(backend_path.parent)
+                
+                # Remove external port exposure (keep internal only)
+                if "ports" in service:
+                    del service["ports"]
+                
+                # Add to LTPipeline network
+                if "networks" not in service:
+                    service["networks"] = ["LTPipeline"]
+                elif isinstance(service["networks"], list) and "LTPipeline" not in service["networks"]:
+                    service["networks"].append("LTPipeline")
+                
+                # Modify GPU settings if provided
+                if gpu_device is not None:
                     if "environment" in service:
                         service["environment"]["CUDA_VISIBLE_DEVICES"] = gpu_device
-                    elif "environment" not in service:
+                    else:
                         service["environment"] = {"CUDA_VISIBLE_DEVICES": gpu_device}
+        
+        # Ensure networks section exists
+        if "networks" not in backend_config:
+            backend_config["networks"] = {}
+        if "LTPipeline" not in backend_config["networks"]:
+            backend_config["networks"]["LTPipeline"] = {}
         
         logger.info(f"Loaded backend configuration from {backend_path}")
         return backend_config
@@ -312,9 +335,11 @@ class TemplateManager:
         # Calculate components directory path
         if repo_root:
             components_dir = str(Path(repo_root) / "components")
+            backends_dir = str(Path(repo_root) / "backends")
         else:
             # Fallback: calculate from template_dir
             components_dir = str(self.template_dir.parent.parent / "components")
+            backends_dir = str(self.template_dir.parent.parent / "backends")
         
         # Use an externally reachable port if provided (e.g., behind Nginx), otherwise fall back to http_port
         effective_external_port = external_port if external_port else http_port
@@ -328,6 +353,7 @@ class TemplateManager:
             f.write(f"EXTERNAL_DOMAIN_PORT={domain}:{effective_external_port}\n")
             f.write(f"PIPELINE_NAME={pipeline_name}\n")
             f.write(f"COMPONENTS_DIR={components_dir}\n")
+            f.write(f"BACKENDS_DIR={backends_dir}\n")
             f.write(f"HF_TOKEN={hf_token or ''}\n")
             f.write(f"BACKENDS={backends}\n")
             if stt_backend_url:
