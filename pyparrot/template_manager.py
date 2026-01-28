@@ -315,7 +315,7 @@ class TemplateManager:
                          http_port: int, frontend_theme: str, hf_token: str = None,
                          external_port: int = None, repo_root: str = None,
                          backends: str = "local", stt_backend_url: str = None,
-                         mt_backend_url: str = None) -> None:
+                         mt_backend_url: str = None, stt_backend_engine: str = None) -> None:
         """Generate .env file for docker-compose with environment variables.
         
         Args:
@@ -328,6 +328,7 @@ class TemplateManager:
             backends: Backend integration mode (local, distributed, external)
             stt_backend_url: External STT backend URL
             mt_backend_url: External MT backend URL
+            stt_backend_engine: STT backend engine (e.g., faster-whisper)
         """
         config_dir = Path(output_dir)
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -356,8 +357,15 @@ class TemplateManager:
             f.write(f"BACKENDS_DIR={backends_dir}\n")
             f.write(f"HF_TOKEN={hf_token or ''}\n")
             f.write(f"BACKENDS={backends}\n")
-            if stt_backend_url:
+            
+            # Write STT_BACKEND_URL based on backend mode
+            if backends == "external" and stt_backend_url:
+                # External backends use provided URL
                 f.write(f"STT_BACKEND_URL={stt_backend_url}\n")
+            elif backends in ["local", "distributed"] and stt_backend_engine == "faster-whisper":
+                # Local/distributed backends use internal Docker network address
+                f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/asr\n")
+            
             if mt_backend_url:
                 f.write(f"MT_BACKEND_URL={mt_backend_url}\n")
 

@@ -233,7 +233,8 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 repo_root=repo_root,
                 backends=backends,
                 stt_backend_url=stt_backend_url,
-                mt_backend_url=mt_backend_url
+                mt_backend_url=mt_backend_url,
+                stt_backend_engine=stt_backend_engine
             )
             logger.info(f"Generated .env file for docker-compose")
         except Exception as e:
