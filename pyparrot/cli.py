@@ -120,12 +120,15 @@ def main():
 )
 @click.option("--stt-backend-url", default=None, help="External STT backend URL (when backends=external)")
 @click.option("--mt-backend-url", default=None, help="External MT backend URL (when backends=external)")
+@click.option("--asr-backend-engine", type=click.Choice(["faster-whisper"]), default="faster-whisper", help="ASR backend engine (for local/distributed)")
+@click.option("--asr-backend-model", type=click.Choice(["large-v2"]), default="large-v2", help="ASR model (for local/distributed)")
+@click.option("--asr-backend-gpu", default=None, help="GPU device ID for ASR backend (for local/distributed)")
 @click.option("--port", type=int, default=8001, help="Internal port Traefik listens on (mapped from host)")
 @click.option("--external-port", type=int, default=None, help="Externally reachable port (e.g., when behind Nginx). Defaults to --port.")
 @click.option("--domain", default="pyparrot.localhost", help="Domain for the pipeline (use a real domain for public deployments)")
 @click.option("--website-theme", default="defaulttheme", help="Website theme")
 @click.option("--hf-token", default=None, help="HF token for dialog components")
-def configure(config_name, type, backends, stt_backend_url, mt_backend_url, port, external_port, domain, website_theme, hf_token):
+def configure(config_name, type, backends, stt_backend_url, mt_backend_url, asr_backend_engine, asr_backend_model, asr_backend_gpu, port, external_port, domain, website_theme, hf_token):
     """Configure a new pipeline and create its configuration directory."""
     try:
         backend_defaults = {
@@ -164,6 +167,9 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, port
             "backend_components": backend_defaults.get(type, []),
             "stt_backend_url": stt_backend_url,
             "mt_backend_url": mt_backend_url,
+            "asr_backend_engine": asr_backend_engine,
+            "asr_backend_model": asr_backend_model,
+            "asr_backend_gpu": asr_backend_gpu,
         }
         if port:
             config_data["port"] = port
@@ -194,7 +200,17 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, port
         # Generate and save docker-compose file
         template_manager = TemplateManager()
         try:
-            compose_config = template_manager.generate_compose_file(type, domain=domain)
+            # Calculate repo root path
+            repo_root = str(Path(__file__).parent.parent)
+            
+            compose_config = template_manager.generate_compose_file(
+                type, 
+                domain=domain,
+                backends_mode=backends,
+                asr_backend_engine=asr_backend_engine,
+                asr_backend_gpu=asr_backend_gpu,
+                repo_root=repo_root
+            )
             compose_file = config_subdir / "docker-compose.yaml"
             template_manager.save_compose_file(compose_config, str(compose_file))
             logger.info(f"Generated docker-compose file: {compose_file}")

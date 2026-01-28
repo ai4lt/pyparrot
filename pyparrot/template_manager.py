@@ -112,12 +112,18 @@ class TemplateManager:
                 if network_name not in base["networks"]:
                     base["networks"][network_name] = network_config
 
-    def generate_compose_file(self, pipeline_type: str, domain: str = None) -> Dict[str, Any]:
+    def generate_compose_file(self, pipeline_type: str, domain: str = None, backends_mode: str = "local", 
+                             asr_backend_engine: str = "faster-whisper", asr_backend_gpu: str = None,
+                             repo_root: str = None) -> Dict[str, Any]:
         """Generate docker-compose configuration for a pipeline type.
         
         Args:
             pipeline_type: Type of pipeline (end2end, cascaded, etc.)
             domain: Domain name (used for conditional rendering)
+            backends_mode: Backend integration mode (local, distributed, external)
+            asr_backend_engine: ASR backend engine (e.g., faster-whisper)
+            asr_backend_gpu: GPU device ID for local/distributed backends
+            repo_root: Repository root path for locating backend services
             
         Returns:
             Complete docker-compose configuration
@@ -126,7 +132,57 @@ class TemplateManager:
             raise ValueError(f"Unknown pipeline type: {pipeline_type}")
         
         components = self.PIPELINE_TEMPLATES[pipeline_type]
-        return self.merge_templates(components, domain)
+        composed = self.merge_templates(components, domain)
+        
+        # Add backend services for local/distributed modes
+        if backends_mode in ["local", "distributed"]:
+            backend_compose = self._load_backend_compose(asr_backend_engine, asr_backend_gpu, repo_root)
+            if backend_compose:
+                self._merge_services(composed, backend_compose)
+        
+        return composed
+
+    def _load_backend_compose(self, backend_engine: str, gpu_device: str = None, repo_root: str = None) -> Dict[str, Any]:
+        """Load backend service configuration.
+        
+        Args:
+            backend_engine: Backend engine name (e.g., faster-whisper)
+            gpu_device: GPU device ID (e.g., '0', '1', or None for CPU)
+            repo_root: Repository root path
+            
+        Returns:
+            Backend docker-compose configuration or None if not found
+        """
+        if backend_engine != "faster-whisper":
+            logger.warning(f"Backend engine '{backend_engine}' not yet supported")
+            return None
+        
+        # Try to find the backend docker-compose
+        if repo_root:
+            backend_path = Path(repo_root) / "backends" / "faster-whisper" / "docker-compose.yaml"
+        else:
+            # Fallback: calculate from template_dir
+            backend_path = self.template_dir.parent.parent / "backends" / "faster-whisper" / "docker-compose.yaml"
+        
+        if not backend_path.exists():
+            logger.warning(f"Backend compose file not found: {backend_path}")
+            return None
+        
+        with open(backend_path, "r") as f:
+            backend_config = yaml.safe_load(f)
+        
+        # Modify GPU settings if provided
+        if gpu_device is not None:
+            # Replace CUDA_VISIBLE_DEVICES environment variable
+            if "services" in backend_config:
+                for service in backend_config["services"].values():
+                    if "environment" in service:
+                        service["environment"]["CUDA_VISIBLE_DEVICES"] = gpu_device
+                    elif "environment" not in service:
+                        service["environment"] = {"CUDA_VISIBLE_DEVICES": gpu_device}
+        
+        logger.info(f"Loaded backend configuration from {backend_path}")
+        return backend_config
 
     def save_compose_file(self, compose_config: Dict[str, Any], output_path: str) -> None:
         """Save docker-compose configuration to file.
