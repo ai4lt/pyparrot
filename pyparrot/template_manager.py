@@ -111,6 +111,14 @@ class TemplateManager:
             for network_name, network_config in overlay["networks"].items():
                 if network_name not in base["networks"]:
                     base["networks"][network_name] = network_config
+        
+        # Merge volumes (avoid duplication)
+        if "volumes" in overlay:
+            if "volumes" not in base:
+                base["volumes"] = {}
+            for volume_name, volume_config in overlay["volumes"].items():
+                if volume_name not in base["volumes"]:
+                    base["volumes"][volume_name] = volume_config
 
     def generate_compose_file(self, pipeline_type: str, domain: str = None, backends_mode: str = "local", 
                              stt_backend_engine: str = "faster-whisper", stt_backend_gpu: str = None,
