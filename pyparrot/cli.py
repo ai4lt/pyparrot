@@ -422,8 +422,18 @@ def start(config_name, component):
             click.echo(click.style("✓ Successfully started Docker containers", fg="green"))
             
             # Wait for services to be ready (especially ltapi and redis)
-            click.echo("Waiting for services to be ready...")
-            time.sleep(3)
+            # For local backends, wait longer as they need to start up too
+            env_file = config_subdir / ".env"
+            wait_time = 3  # Default wait time
+            if env_file.exists():
+                from dotenv import dotenv_values
+                env_vars = dotenv_values(env_file)
+                backends_mode = env_vars.get("BACKENDS", "local")
+                if backends_mode == "local":
+                    wait_time = 10
+            
+            click.echo(f"Waiting for services to be ready ({wait_time}s)...")
+            time.sleep(wait_time)
             
             # Initialize Redis admin group
             click.echo("Initializing Redis groups...")
