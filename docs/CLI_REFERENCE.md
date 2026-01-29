@@ -2,7 +2,7 @@
 
 ## Overview
 
-PyParrot provides a comprehensive CLI for managing Docker-based speech and LLM pipelines.
+PyParrot provides a CLI for managing Docker-based speech translation pipelines with support for multiple backend modes.
 
 ## Installation
 
@@ -10,46 +10,76 @@ PyParrot provides a comprehensive CLI for managing Docker-based speech and LLM p
 pip install -e .
 ```
 
-## Main Commands
+## Commands
 
 ### configure
 
-Configure a new pipeline.
+Configure a new pipeline and generate docker-compose files.
 
 **Usage:**
 ```bash
-pyparrot configure [OPTIONS]
+pyparrot configure CONFIG_NAME [OPTIONS]
+```
+
+**Arguments:**
+```
+  CONFIG_NAME               Name of the pipeline configuration
 ```
 
 **Options:**
 ```
-  --config PATH              Path to YAML configuration file
-  --name TEXT                Pipeline name (required without --config)
-  --model TEXT              LLM model (default: gpt-3.5-turbo)
-  --speech-model TEXT       Speech model (default: whisper)
-  --sample-rate INTEGER     Audio sample rate (default: 16000)
-  --temperature FLOAT       LLM temperature (default: 0.7)
-  --output PATH             Save config to file
+  --type [end2end|cascaded|LT.2025|dialog|BOOM]
+                            Pipeline type (default: end2end)
+  --backends [local|distributed|external]
+                            Backend integration mode (default: local)
+  --stt-backend-url TEXT    External STT backend URL (for backends=external)
+  --mt-backend-url TEXT     External MT backend URL (for backends=external)
+  --stt-backend-engine [faster-whisper]
+                            STT backend engine (default: faster-whisper)
+  --stt-backend-model [large-v2]
+                            STT model (default: large-v2)
+  --stt-backend-gpu TEXT    GPU device ID for STT backend (e.g., 0, 1)
+  --port INTEGER            Internal port Traefik listens on (default: 8001)
+  --external-port INTEGER   Externally reachable port (for reverse proxy setups)
+  --domain TEXT             Domain for the pipeline (default: pyparrot.localhost)
+  --website-theme TEXT      Website theme (default: defaulttheme)
+  --hf-token TEXT           HuggingFace token for dialog components
   --help                    Show help message
 ```
 
 **Examples:**
 ```bash
-# Configure from CLI options
-pyparrot configure --name my-pipeline --model gpt-3.5-turbo --sample-rate 16000
+# Basic end-to-end pipeline with local backends
+pyparrot configure my-pipeline
 
-# Configure from file
-pyparrot configure --config config.yaml
+# Cascaded pipeline with GPU-accelerated backends
+pyparrot configure my-pipeline --type cascaded --backends local --stt-backend-gpu 0
 
-# Configure and save to file
-pyparrot configure --name my-pipeline --output my-config.yaml
+# Pipeline with external backends
+pyparrot configure my-pipeline --backends external \
+  --stt-backend-url http://stt.example.com:5008/asr \
+  --mt-backend-url http://mt.example.com:5009/translate
+
+# Custom domain and port
+pyparrot configure my-pipeline --domain example.com --port 8080 --external-port 443
 ```
+
+**Backend Modes:**
+- **local**: Backends run as Docker containers within the pipeline network
+- **distributed**: Backends use message queue routing with local containers
+- **external**: Backends are remote services accessed via HTTP URLs
+
+**Notes:**
+- Creates a directory under `config/` (or `$PYPARROT_CONFIG_DIR`) with generated files
+- Generates `docker-compose.yaml`, `.env`, and authentication configs
+- Prompts for admin password during first-time configuration
+- For local/distributed modes, automatically sets internal backend URLs
 
 ---
 
 ### build
 
-Build Docker images for a pipeline configuration using docker-compose.
+Build Docker images for a pipeline configuration.
 
 **Usage:**
 ```bash
@@ -58,94 +88,42 @@ pyparrot build CONFIG_NAME [OPTIONS]
 
 **Arguments:**
 ```
-  CONFIG_NAME               Name of the pipeline configuration (located in PYPARROT_CONFIG_DIR or ./config)
+  CONFIG_NAME               Name of the pipeline configuration
 ```
 
 **Options:**
 ```
-  -c, --component TEXT      Specific components to build (can be used multiple times). 
-                            Default: build all components.
+  -c, --component TEXT      Specific component(s) to build (can be used multiple times)
   --no-cache                Build without using cache
   --help                    Show help message
 ```
 
 **Examples:**
 ```bash
-# Build all components for a configuration
+# Build all components
 pyparrot build my-pipeline
 
-# Build specific components only
-pyparrot build my-pipeline -c kafka -c traefik
+# Build specific components
+pyparrot build my-pipeline -c ltapi -c ltfrontend
 
 # Build without cache
 pyparrot build my-pipeline --no-cache
-
-# Build multiple specific components
-pyparrot build my-pipeline -c qbmediator -c ltapi -c frontend
 ```
 
 **Environment Variables:**
 - `PYPARROT_CONFIG_DIR`: Directory containing pipeline configurations (default: `./config`)
 
 **Notes:**
-- The configuration directory must contain a valid `docker-compose.yaml` file
-- All components are built if no `--component` options are specified
-- Component names must match service names in the docker-compose.yaml file
-- Environment variables from the `.env` file in the config directory are automatically loaded
-
----
-
-### compose-build
-
-Build Docker images for a pipeline configuration using docker-compose.
-
-**Usage:**
-```bash
-pyparrot compose-build CONFIG_NAME [OPTIONS]
-```
-
-**Arguments:**
-```
-  CONFIG_NAME               Name of the pipeline configuration (located in PYPARROT_CONFIG_DIR or ./config)
-```
-
-**Options:**
-```
-  -c, --component TEXT      Specific components to build (can be used multiple times). 
-                            Default: build all components.
-  --no-cache                Build without using cache
-  --help                    Show help message
-```
-
-**Examples:**
-```bash
-# Build all components for a configuration
-pyparrot compose-build my-pipeline
-
-# Build specific components only
-pyparrot compose-build my-pipeline -c kafka -c traefik
-
-# Build without cache
-pyparrot compose-build my-pipeline --no-cache
-
-# Build multiple specific components
-pyparrot compose-build my-pipeline -c qbmediator -c ltapi -c frontend
-```
-
-**Environment Variables:**
-- `PYPARROT_CONFIG_DIR`: Directory containing pipeline configurations (default: `./config`)
-
-**Notes:**
-- The configuration directory must contain a valid `docker-compose.yaml` file
-- All components are built if no `--component` options are specified
-- Component names must match service names in the docker-compose.yaml file
-- Environment variables from the `.env` file in the config directory are automatically loaded
+- Checks Docker daemon before building
+- Uses docker-compose to build services defined in the generated configuration
+- All components built if no `--component` option specified
+- Component names must match service names in docker-compose.yaml
 
 ---
 
 ### start
 
-Start Docker containers for a pipeline configuration using docker-compose.
+Start Docker containers for a pipeline configuration.
 
 **Usage:**
 ```bash
@@ -154,43 +132,39 @@ pyparrot start CONFIG_NAME [OPTIONS]
 
 **Arguments:**
 ```
-  CONFIG_NAME               Name of the pipeline configuration (located in PYPARROT_CONFIG_DIR or ./config)
+  CONFIG_NAME               Name of the pipeline configuration
 ```
 
 **Options:**
 ```
-  -c, --component TEXT      Specific components to start (can be used multiple times). 
-                            Default: start all components.
+  -c, --component TEXT      Specific component(s) to start (can be used multiple times)
   --help                    Show help message
 ```
 
 **Examples:**
 ```bash
-# Start all containers for a configuration
+# Start all containers
 pyparrot start my-pipeline
 
-# Start specific components only
-pyparrot start my-pipeline -c ltapi -c ltapi-stream
-
-# Start multiple specific components
-pyparrot start my-pipeline -c qbmediator -c ltapi -c frontend
+# Start specific components
+pyparrot start my-pipeline -c ltapi -c ltfrontend
 ```
 
 **Environment Variables:**
 - `PYPARROT_CONFIG_DIR`: Directory containing pipeline configurations (default: `./config`)
 
 **Notes:**
-- The configuration directory must contain a valid `docker-compose.yaml` file
-- All components are started if no `--component` options are specified
-- Component names must match service names in the docker-compose.yaml file
-- Environment variables from the `.env` file in the config directory are automatically loaded
+- Checks Docker daemon before starting
 - Creates containers if they don't exist (uses `docker-compose up -d`)
+- Waits for ltapi container to be ready before backend registration
+- Automatically registers STT/MT backends with ltapi if configured
+- Initializes Redis user groups (admin, presenter) on first start
 
 ---
 
 ### stop
 
-Stop Docker containers for a pipeline configuration using docker-compose.
+Stop Docker containers for a pipeline configuration.
 
 **Usage:**
 ```bash
@@ -198,6 +172,115 @@ pyparrot stop CONFIG_NAME [OPTIONS]
 ```
 
 **Arguments:**
+```
+  CONFIG_NAME               Name of the pipeline configuration
+```
+
+**Options:**
+```
+  -c, --component TEXT      Specific component(s) to stop (can be used multiple times)
+  --help                    Show help message
+```
+
+**Examples:**
+```bash
+# Stop all containers
+pyparrot stop my-pipeline
+
+# Stop specific components
+pyparrot stop my-pipeline -c ltapi -c ltfrontend
+```
+
+**Environment Variables:**
+- `PYPARROT_CONFIG_DIR`: Directory containing pipeline configurations (default: `./config`)
+
+**Notes:**
+- Uses `docker-compose stop` to gracefully stop containers
+- Containers remain and can be restarted with `pyparrot start`
+- Use `pyparrot delete` to remove containers and volumes
+
+---
+
+### delete
+
+Delete a pipeline configuration and all its Docker resources.
+
+**Usage:**
+```bash
+pyparrot delete CONFIG_NAME
+```
+
+**Arguments:**
+```
+  CONFIG_NAME               Name of the pipeline configuration
+```
+
+**Examples:**
+```bash
+# Delete pipeline
+pyparrot delete my-pipeline
+```
+
+**Environment Variables:**
+- `PYPARROT_CONFIG_DIR`: Directory containing pipeline configurations (default: `./config`)
+
+**Notes:**
+- Stops and removes all containers for the pipeline
+- Removes associated volumes with `-v` flag
+- Requires user confirmation before deletion
+- Does not delete the configuration directory itself
+
+---
+
+### status
+
+Get the status of a pipeline (legacy command).
+
+**Usage:**
+```bash
+pyparrot status NAME
+```
+
+**Arguments:**
+```
+  NAME                      Pipeline name
+```
+
+**Examples:**
+```bash
+# Get status
+pyparrot status my-pipeline
+```
+
+**Notes:**
+- This is a legacy command that loads config from older format
+- For docker-compose-based pipelines, use `docker-compose ps` directly
+
+---
+
+### evaluate
+
+Run evaluation on a pipeline (legacy command).
+
+**Usage:**
+```bash
+pyparrot evaluate NAME [OPTIONS]
+```
+
+**Arguments:**
+```
+  NAME                      Pipeline name
+```
+
+**Options:**
+```
+  --dataset PATH            Path to evaluation dataset
+  --output PATH             Path to save evaluation results
+  --metrics TEXT            Metrics to compute (multiple)
+  --help                    Show help message
+```
+
+**Examples:**
 ```
   CONFIG_NAME               Name of the pipeline configuration (located in PYPARROT_CONFIG_DIR or ./config)
 ```

@@ -1,13 +1,22 @@
 # PyParrot
 
-CLI tool for managing Docker pipelines of speech and LLM components.
+CLI tool for managing Docker-based speech translation pipelines with support for local, distributed, and external backends.
 
 ## Features
 
-- **Configure**: Define pipeline configuration via CLI arguments or YAML config files
-- **Build**: Build Docker images for your pipeline configuration
-- **Manage**: Start and stop containers
-- **Evaluate**: Run evaluation workflows on the pipeline
+- **Configure**: Create pipeline configurations with docker-compose templates
+- **Build**: Build Docker images for all pipeline components
+- **Start/Stop**: Manage Docker containers with automatic backend registration
+- **Delete**: Clean up pipeline resources including volumes
+- **Status**: View pipeline and component status
+- **Evaluate**: Run evaluation workflows on deployed pipelines
+
+## Documentation
+
+- **[Getting Started](docs/GETTING_STARTED.md)** - Installation and quick start guide
+- **[CLI Reference](docs/CLI_REFERENCE.md)** - Complete command documentation
+- **[Architecture](docs/ARCHITECTURE.md)** - System architecture and components
+- **[Project Setup](docs/PROJECT_SETUP.md)** - Development and contribution guide
 
 ## Installation
 
@@ -36,77 +45,93 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
-## Usage
+## Quick Start
 
-### Configure Pipeline
-
-```bash
-# From command line arguments
-pyparrot configure --name my-pipeline --model gpt-3.5 --sample-rate 16000
-
-# From config file
-pyparrot configure --config config.yaml
-```
-
-### Build Docker Image
+### Configure a Pipeline
 
 ```bash
-pyparrot build --config config.yaml
+# Create an end-to-end pipeline with local backends
+pyparrot configure my-pipeline --type end2end --port 8001
+
+# Create a cascaded pipeline with specific GPU
+pyparrot configure my-pipeline --type cascaded --backends local --stt-backend-gpu 0
+
+# Create a pipeline with external backends
+pyparrot configure my-pipeline --type end2end --backends external \
+  --stt-backend-url http://my-stt-server:5008/asr \
+  --mt-backend-url http://my-mt-server:5009/translate
 ```
 
-### Start Container
+### Build and Start
 
 ```bash
-pyparrot start --name my-pipeline
+# Build all components
+pyparrot build my-pipeline
+
+# Start the pipeline
+pyparrot start my-pipeline
+
+# Check status
+pyparrot status my-pipeline
 ```
 
-### Stop Container
+### Stop and Clean Up
 
 ```bash
-pyparrot stop --name my-pipeline
+# Stop the pipeline
+pyparrot stop my-pipeline
+
+# Delete pipeline and volumes
+pyparrot delete my-pipeline
 ```
 
-### Run Evaluation
+## Backend Modes
 
-```bash
-pyparrot evaluate --name my-pipeline --dataset test_data.json
-```
+PyParrot supports three backend integration modes:
 
-## Configuration File Format
+- **local**: Run backends as local Docker containers (default)
+- **distributed**: Use message queue routing with local containers
+- **external**: Connect to remote backend services via URLs
 
-```yaml
-name: my-pipeline
-version: "1.0"
-components:
-  speech:
-    model: whisper
-    sample_rate: 16000
-  llm:
-    model: gpt-3.5-turbo
-    temperature: 0.7
-docker:
-  image_name: pyparrot-pipeline
-  base_image: python:3.11-slim
-  port: 8000
-```
+For local/distributed modes, specify:
+- `--stt-backend-engine faster-whisper` (currently the only supported engine)
+- `--stt-backend-model large-v2` (currently the only supported model)
+- `--stt-backend-gpu <device_id>` (e.g., 0, 1, or omit for CPU)
 
 ## Project Structure
 
 ```
 pyparrot/
-├── __init__.py
-├── cli.py                 # CLI entry point
-├── config.py              # Configuration management
-├── docker_manager.py      # Docker operations
-├── pipeline.py            # Pipeline logic
-├── evaluator.py           # Evaluation framework
-├── components/            # Component implementations
-│   ├── speech/
-│   └── llm/
-└── tests/
-    ├── test_config.py
-    ├── test_docker_manager.py
-    └── test_pipeline.py
+├── pyparrot/
+│   ├── cli.py                 # CLI entry point  
+│   ├── config.py              # Configuration models
+│   ├── template_manager.py    # Docker-compose template generation
+│   ├── pipeline.py            # Pipeline logic (legacy)
+│   ├── evaluator.py           # Evaluation framework
+│   ├── docker_manager.py      # Docker operations (legacy)
+│   ├── components/            # Component implementations
+│   └── templates/             # Docker-compose and config templates
+│       ├── docker/            # Service templates (middleware, asr, mt, etc.)
+│       ├── dex/               # Dex OIDC templates
+│       └── traefik/           # Traefik config templates
+├── components/                # External service components (Git submodules)
+│   ├── qbmediator/           # Queue-based mediator
+│   ├── ltfrontend/           # Web frontend
+│   ├── lt_api/               # LT API service
+│   ├── lt_api_stream/        # Streaming API
+│   ├── streamingasr/         # Streaming ASR service
+│   ├── streamingmt/          # Streaming MT service
+│   └── ...                   # Other components
+├── backends/                  # Backend services (Git submodules)
+│   └── faster-whisper/       # Faster-whisper STT backend
+├── config/                    # Generated pipeline configurations
+│   └── <config-name>/        # Each pipeline gets its own directory
+│       ├── docker-compose.yaml
+│       ├── .env
+│       ├── dex/
+│       └── traefik/
+├── docs/                      # Documentation
+└── tests/                     # Test suite
 ```
 
 ## License

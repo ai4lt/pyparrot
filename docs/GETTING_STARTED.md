@@ -5,17 +5,16 @@
 ### Prerequisites
 
 - Python 3.9+
-- Docker
-- pip
+- Docker with compose support
 - Git (for cloning with submodules)
 
 ### Clone the Repository
 
-PyParrot uses Git submodules for component dependencies (like qbmediator). Clone with submodules:
+PyParrot uses Git submodules for component and backend dependencies:
 
 ```bash
 # Clone with submodules
-git clone --recurse-submodules https://github.com/your-org/pyparrot.git
+git clone --recurse-submodules https://github.com/ai4lt/pyparrot.git
 cd pyparrot
 
 # If already cloned without submodules, initialize them:
@@ -28,176 +27,175 @@ git submodule update --init --recursive
 # Install in development mode
 pip install -e .
 
-# Install with development dependencies
+# Install with development dependencies (optional)
 pip install -e ".[dev]"
 ```
 
 ### Verify Installation
 
 ```bash
-pyparrot --help
+python -m pyparrot.cli --help
 ```
 
 ## Project Components
 
-### External Components (Git Submodules)
+PyParrot uses Git submodules to manage external service components:
 
-PyParrot uses Git submodules to manage external service components in the `components/` directory:
+### Components (in `components/` directory)
 
+Middleware services as Git submodules:
 - **qbmediator** - Queue-based mediator for orchestrating components
-  - Repository: https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/qbmediator.git
-  
-- **kafka_post_task** - Kafka post-processing task handler (local component)
-  - Location: `components/kafka_post_task/`
-  
 - **lt_api** - LT API service for handling requests
-  - Repository: https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/lt_api.git
-  
 - **lt_api_stream** - Streaming API for real-time processing
-  - Repository: https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/lt_api_stream.git
-  
-- **loggingwoker** - Logger service for handling and archiving logs
-  - Repository: https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/loggingwoker.git
-  
 - **ltfrontend** - Web frontend interface
-  - Repository: https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/ltfrontend.git
-  
 - **lt-archive** - Archive service for storing translations
-  - Repository: https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/lt-archive.git
-  
+- **loggingwoker** - Logger service for handling and archiving logs
 - **streamingasr** - Streaming automatic speech recognition service
-  - Repository: https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/streamingasr.git
+- **streamingmt** - Streaming machine translation service
+- **kafka_post_task** - Kafka post-processing task handler
+
+### Backends (in `backends/` directory)
+
+Backend inference engines as Git submodules:
+- **faster-whisper** - STT backend using faster-whisper for speech recognition
 
 These are included as submodules so you can:
 - Modify component code locally during development
-- Build components from source with `docker-compose --build`
-- Update components independently while keeping them versioned with the main project
+- Build components from source
+- Update components independently while keeping them versioned
 
 ## Quick Start
 
 ### 1. Configure a Pipeline
 
-Create a pipeline configuration from the command line:
+PyParrot supports different backend modes:
 
+**Local backends (default)** - Backends run as Docker containers:
 ```bash
-pyparrot configure my-pipeline
+pyparrot configure my-pipeline --type end2end --backends local --stt-backend-gpu 0
 ```
 
-This creates an interactive configuration with prompts for:
-- Pipeline type (end2end, cascaded, LT.2025, BOOM)
-- Domain (default: pyparrot.localhost)
-- Port (default: 8001, internal Traefik port)
-- External port (optional; use when a reverse proxy exposes a different public port)
-- Admin password (for dex OIDC)
-- Website theme (default: default)
-
-Example with options (public domain, custom external port):
-
+**Distributed backends** - Backends use message queue routing:
 ```bash
-pyparrot configure my-pipeline \
-  --type cascaded \
-  --domain example.com \
-  --port 8001 \
-  --external-port 8443
+pyparrot configure my-pipeline --type cascaded --backends distributed --stt-backend-gpu 0
 ```
 
-Domain/port modes supported:
-- Private/local: pyparrot.localhost:8001 (default; *.localhost resolves to 127.0.0.1)
-- Public direct: your-domain with --port (external port = internal port)
-- Public behind reverse proxy: your-domain with --external-port <public_port>; internal Traefik stays on --port, while OIDC (dex/forward-auth) uses the externally reachable domain:port.
-
-Or use the example configuration:
-
+**External backends** - Connect to remote backend services:
 ```bash
-cp examples/config.yaml my-config.yaml
+pyparrot configure my-pipeline --type end2end --backends external \
+  --stt-backend-url http://my-stt-server:5008/asr \
+  --mt-backend-url http://my-mt-server:5009/translate
 ```
 
-### 2. Build the Docker Image
+Pipeline types:
+- `end2end` - Speech-to-text only
+- `cascaded` - Speech-to-text + Machine translation
+- `LT.2025` - Full translation suite with TTS and dialog
+- `dialog` - ASR + TTS + Dialog system
+- `BOOM` - Basic ASR pipeline
 
-Build an image for your pipeline:
+Configuration options:
+- `--domain` - Domain for the pipeline (default: pyparrot.localhost)
+- `--port` - Internal Traefik port (default: 8001)
+- `--external-port` - Public port if behind reverse proxy
+- `--website-theme` - Frontend theme (default: defaulttheme)
+- `--hf-token` - HuggingFace token for dialog components
+
+The configure command will:
+- Create a configuration directory under `config/<name>/`
+- Generate docker-compose.yaml with selected components
+- Create .env file with environment variables
+- Generate authentication configs (Dex, Traefik)
+- Prompt for admin password (for OIDC)
+
+### 2. Build Docker Images
+
+Build all components for your pipeline:
 
 ```bash
-pyparrot build --config my-config.yaml
+pyparrot build my-pipeline
 ```
 
-This will:
-- Generate a Dockerfile
-- Create requirements.txt
-- Build the Docker image
+Build specific components only:
+
+```bash
+pyparrot build my-pipeline -c ltapi -c ltfrontend
+```
+
+Build without cache:
+
+```bash
+pyparrot build my-pipeline --no-cache
+```
 
 ### 3. Start the Pipeline
 
-Start a container from the image:
+Start all containers:
 
 ```bash
-pyparrot start --config my-config.yaml
+pyparrot start my-pipeline
 ```
 
-Check the status:
+The start command will:
+- Start all Docker containers with `docker-compose up -d`
+- Wait for ltapi to be ready
+- Initialize Redis user groups (admin, presenter)
+- Register configured backends with ltapi
 
+Access the frontend at `http://pyparrot.localhost:8001` (or your configured domain/port).
+
+### 4. Manage the Pipeline
+
+Check container status:
 ```bash
-pyparrot status --name my-pipeline
+docker-compose -f config/my-pipeline/docker-compose.yaml ps
 ```
 
-### 4. Run Evaluation
-
-Evaluate the pipeline on a dataset:
-
+View logs:
 ```bash
-pyparrot evaluate \
-  --name my-pipeline \
-  --dataset examples/eval_dataset.json \
-  --output results.json
+docker-compose -f config/my-pipeline/docker-compose.yaml logs -f
 ```
 
-### 5. Stop the Pipeline
-
-Stop the running container:
-
+Stop the pipeline:
 ```bash
-pyparrot stop --name my-pipeline
+pyparrot stop my-pipeline
 ```
 
-## Configuration File Format
-
-PyParrot uses YAML for configuration. See the structure below:
-
-```yaml
-name: my-pipeline
-version: "1.0"
-description: "My custom pipeline"
-
-components:
-  speech:
-    model: whisper              # Speech model
-    sample_rate: 16000          # Audio sample rate (Hz)
-    language: en                # Language code
-    device: cpu                 # Device (cpu/cuda)
-
-  llm:
-    model: gpt-3.5-turbo        # LLM model
-    temperature: 0.7            # Generation temperature (0-2)
-    max_tokens: 256             # Max tokens to generate
-    api_key: ${OPENAI_API_KEY}  # Optional API key
-
-docker:
-  image_name: my-pipeline       # Docker image name
-  base_image: python:3.11-slim  # Base Docker image
-  port: 8000                    # Exposed port
-  volumes:                      # Volume mappings
-    /data: /app/data
-  environment:                  # Environment variables
-    LOG_LEVEL: INFO
-    DEBUG: "false"
+Delete the pipeline (removes containers and volumes):
+```bash
+pyparrot delete my-pipeline
 ```
 
-## Programmatic Usage
+### 5. Backend Configuration
 
-You can also use PyParrot as a Python library:
+For **local** and **distributed** backends:
+- Backends run as Docker containers within the pipeline
+- STT backend URL is automatically set to `http://whisper-worker:5008/asr`
+- Specify GPU with `--stt-backend-gpu 0` (or omit for CPU)
+- Backend volumes (e.g., model cache) are automatically managed
 
-```python
-from pyparrot.config import PipelineConfig
-from pyparrot.pipeline import Pipeline
+For **external** backends:
+- Provide URLs to remote backend services
+- Example: `--stt-backend-url http://my-server:5008/asr`
+- Backends are registered with ltapi on startup
+
+## Backend Engines
+
+### STT Backend: faster-whisper
+
+Currently supported:
+- Engine: `faster-whisper` (default)
+- Model: `large-v2` (default)
+- GPU support via `--stt-backend-gpu <device_id>`
+
+The faster-whisper backend:
+- Uses CUDA for GPU acceleration
+- Caches models in Docker volume
+- Supports CPU fallback if no GPU specified
+
+### MT Backend
+
+Currently configured via external URL only.
 from pyparrot.evaluator import Evaluator
 
 # Create configuration
