@@ -66,37 +66,6 @@ def get_docker_compose_command():
     )
 
 
-def run_with_retry(cmd, max_retries=3, delay=2):
-    """Run a command with retry logic for transient failures.
-    
-    Args:
-        cmd: Command list to execute
-        max_retries: Number of times to retry on failure
-        delay: Delay in seconds between retries
-        
-    Returns:
-        subprocess.CompletedProcess: Result of successful command execution
-        
-    Raises:
-        RuntimeError: If command fails after all retries
-    """
-    last_error = None
-    for attempt in range(max_retries):
-        try:
-            result = subprocess.run(cmd, capture_output=False, text=True)
-            if result.returncode == 0:
-                return result
-            last_error = f"Exit code {result.returncode}"
-        except Exception as e:
-            last_error = str(e)
-        
-        if attempt < max_retries - 1:
-            click.echo(f"Attempt {attempt + 1}/{max_retries} failed. Retrying in {delay}s...")
-            time.sleep(delay)
-    
-    raise RuntimeError(f"Command failed after {max_retries} attempts: {last_error}")
-
-
 @click.group()
 @click.version_option()
 def main():
@@ -480,16 +449,12 @@ def start(config_name, component):
             
             # Register backends if configured
             env_file = config_subdir / ".env"
-            click.echo(f"[DEBUG] Checking for .env file at: {env_file}")
             if env_file.exists():
-                click.echo(f"[DEBUG] .env file found, reading configuration...")
                 from dotenv import dotenv_values
                 env_vars = dotenv_values(env_file)
                 backends_mode = env_vars.get("BACKENDS", "local")
                 stt_url = env_vars.get("STT_BACKEND_URL")
                 mt_url = env_vars.get("MT_BACKEND_URL")
-                
-                click.echo(f"[DEBUG] backends_mode: {backends_mode}, stt_url: {stt_url}, mt_url: {mt_url}")
                 
                 if stt_url or mt_url:
                     click.echo(f"Registering backends ({backends_mode} mode)...")
@@ -525,10 +490,6 @@ def start(config_name, component):
                             click.echo(click.style(f"✓ MT backend registered: {mt_url}", fg="green"))
                         else:
                             click.echo(click.style(f"⚠ Warning: Could not register MT backend: {mt_result.stderr}", fg="yellow"))
-                else:
-                    click.echo(f"[DEBUG] No backend URLs configured, skipping backend registration")
-            else:
-                click.echo(f"[DEBUG] .env file not found at {env_file}")
         else:
             click.echo(click.style(f"✗ Start failed with exit code {result.returncode}", fg="red"), err=True)
             sys.exit(result.returncode)
