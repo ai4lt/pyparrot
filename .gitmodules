@@ -46,3 +46,6 @@
 [submodule "backends/faster-whisper"]
 	path = backends/faster-whisper
 	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/inference/faster-whisper.git
+[submodule "backends/vllmserver"]
+	path = backends/vllmserver
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/inference/vllmserver.git
