@@ -154,23 +154,31 @@ class TemplateManager:
         """Load backend service configuration.
         
         Args:
-            backend_engine: Backend engine name (e.g., faster-whisper)
+            backend_engine: Backend engine name (e.g., faster-whisper, vllm)
             gpu_device: GPU device ID (e.g., '0', '1', or None for CPU)
             repo_root: Repository root path
             
         Returns:
             Backend docker-compose configuration or None if not found
         """
-        if backend_engine != "faster-whisper":
+        # Map backend engines to their directory names
+        backend_dirs = {
+            "faster-whisper": "faster-whisper",
+            "vllm": "vllmserver"
+        }
+        
+        if backend_engine not in backend_dirs:
             logger.warning(f"Backend engine '{backend_engine}' not yet supported")
             return None
         
+        backend_dir_name = backend_dirs[backend_engine]
+        
         # Try to find the backend docker-compose
         if repo_root:
-            backend_path = Path(repo_root) / "backends" / "faster-whisper" / "docker-compose.yaml"
+            backend_path = Path(repo_root) / "backends" / backend_dir_name / "docker-compose.yaml"
         else:
             # Fallback: calculate from template_dir
-            backend_path = self.template_dir.parent.parent / "backends" / "faster-whisper" / "docker-compose.yaml"
+            backend_path = self.template_dir.parent.parent / "backends" / backend_dir_name / "docker-compose.yaml"
         
         if not backend_path.exists():
             logger.warning(f"Backend compose file not found: {backend_path}")
@@ -185,7 +193,7 @@ class TemplateManager:
                 # Update build path to use BACKENDS_DIR
                 if "build" in service and service["build"] == ".":
                     if repo_root:
-                        service["build"] = "${BACKENDS_DIR}/faster-whisper"
+                        service["build"] = "${BACKENDS_DIR}/" + backend_dir_name
                     else:
                         service["build"] = str(backend_path.parent)
                 
@@ -366,13 +374,16 @@ class TemplateManager:
             f.write(f"HF_TOKEN={hf_token or ''}\n")
             f.write(f"BACKENDS={backends}\n")
             
-            # Write STT_BACKEND_URL based on backend mode
+            # Write STT_BACKEND_URL based on backend mode and engine
             if backends == "external" and stt_backend_url:
                 # External backends use provided URL
                 f.write(f"STT_BACKEND_URL={stt_backend_url}\n")
-            elif backends in ["local", "distributed"] and stt_backend_engine == "faster-whisper":
+            elif backends in ["local", "distributed"]:
                 # Local/distributed backends use internal Docker network address
-                f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/asr\n")
+                if stt_backend_engine == "faster-whisper":
+                    f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/asr\n")
+                elif stt_backend_engine == "vllm":
+                    f.write(f"STT_BACKEND_URL=http://vllm:8001\n")
             
             if mt_backend_url:
                 f.write(f"MT_BACKEND_URL={mt_backend_url}\n")
