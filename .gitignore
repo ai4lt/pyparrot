@@ -132,6 +132,7 @@ dmypy.json
 # Project specific
 data/
 output/
+config/
 *.yaml.bak
 evaluation_results.json
 example_config.yaml
