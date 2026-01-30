@@ -210,7 +210,21 @@ class TemplateManager:
                 # Modify GPU settings if provided
                 if gpu_device is not None:
                     if "environment" in service:
-                        service["environment"]["CUDA_VISIBLE_DEVICES"] = gpu_device
+                        # Handle environment as list (YAML format with dashes)
+                        if isinstance(service["environment"], list):
+                            # Update NVIDIA_VISIBLE_DEVICES or CUDA_VISIBLE_DEVICES in list
+                            updated = False
+                            for i, env_var in enumerate(service["environment"]):
+                                if isinstance(env_var, str):
+                                    if env_var.startswith("NVIDIA_VISIBLE_DEVICES=") or env_var.startswith("CUDA_VISIBLE_DEVICES="):
+                                        service["environment"][i] = f"NVIDIA_VISIBLE_DEVICES={gpu_device}"
+                                        updated = True
+                                        break
+                            if not updated:
+                                service["environment"].append(f"CUDA_VISIBLE_DEVICES={gpu_device}")
+                        # Handle environment as dict
+                        else:
+                            service["environment"]["CUDA_VISIBLE_DEVICES"] = gpu_device
                     else:
                         service["environment"] = {"CUDA_VISIBLE_DEVICES": gpu_device}
         
