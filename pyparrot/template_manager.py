@@ -383,7 +383,7 @@ class TemplateManager:
                 if stt_backend_engine == "faster-whisper":
                     f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/asr\n")
                 elif stt_backend_engine == "vllm":
-                    f.write(f"STT_BACKEND_URL=http://vllm:8001\n")
+                    f.write(f"STT_BACKEND_URL=http://vllm:8001/asr\n")
             
             if mt_backend_url:
                 f.write(f"MT_BACKEND_URL={mt_backend_url}\n")
