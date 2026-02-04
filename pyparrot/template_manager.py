@@ -122,6 +122,7 @@ class TemplateManager:
 
     def generate_compose_file(self, pipeline_type: str, domain: str = None, backends_mode: str = "local", 
                              stt_backend_engine: str = "faster-whisper", stt_backend_gpu: str = None,
+                             mt_backend_engine: str = None, mt_backend_gpu: str = None,
                              repo_root: str = None) -> Dict[str, Any]:
         """Generate docker-compose configuration for a pipeline type.
         
@@ -131,6 +132,8 @@ class TemplateManager:
             backends_mode: Backend integration mode (local, distributed, external)
             stt_backend_engine: STT backend engine (e.g., faster-whisper)
             stt_backend_gpu: GPU device ID for local/distributed backends
+            mt_backend_engine: MT backend engine (e.g., vllm)
+            mt_backend_gpu: GPU device ID for MT backend
             repo_root: Repository root path for locating backend services
             
         Returns:
@@ -147,16 +150,28 @@ class TemplateManager:
             backend_compose = self._load_backend_compose(stt_backend_engine, stt_backend_gpu, repo_root)
             if backend_compose:
                 self._merge_services(composed, backend_compose)
+            
+            # Add MT backend if specified (only for local/distributed with backends_mode enabled)
+            if mt_backend_engine:
+                logger.info(f"Loading MT backend: {mt_backend_engine}")
+                mt_compose = self._load_backend_compose(mt_backend_engine, mt_backend_gpu, repo_root, backend_type="mt")
+                if mt_compose:
+                    self._merge_services(composed, mt_compose)
+                else:
+                    logger.warning(f"Failed to load MT backend: {mt_backend_engine}")
+            else:
+                logger.info("No MT backend engine specified")
         
         return composed
 
-    def _load_backend_compose(self, backend_engine: str, gpu_device: str = None, repo_root: str = None) -> Dict[str, Any]:
+    def _load_backend_compose(self, backend_engine: str, gpu_device: str = None, repo_root: str = None, backend_type: str = "stt") -> Dict[str, Any]:
         """Load backend service configuration.
         
         Args:
             backend_engine: Backend engine name (e.g., faster-whisper, vllm)
             gpu_device: GPU device ID (e.g., '0', '1', or None for CPU)
             repo_root: Repository root path
+            backend_type: Type of backend ("stt" or "mt")
             
         Returns:
             Backend docker-compose configuration or None if not found
@@ -189,7 +204,59 @@ class TemplateManager:
         
         # Modify backend services for integration
         if "services" in backend_config:
-            for service_name, service in backend_config["services"].items():
+            # Create a list of items to iterate over to avoid "dictionary changed during iteration" error
+            services_items = list(backend_config["services"].items())
+            for original_service_name, service in services_items:
+                # Rename services for MT backend to avoid conflicts with STT
+                service_name = original_service_name
+                if backend_type == "mt":
+                    if service_name == "vllm-server":
+                        service_name = "vllm-server-mt"
+                    elif service_name == "vllm":
+                        service_name = "vllm-mt"
+                    elif service_name == "whisper-worker":
+                        service_name = "whisper-worker-mt"
+                    
+                    # Update the service in the config dict with new name
+                    backend_config["services"][service_name] = backend_config["services"].pop(original_service_name)
+                
+                # Update VLLM_URL and depends_on references when renaming services for MT backend
+                if backend_type == "mt" and backend_engine == "vllm":
+                    if "environment" in service:
+                        if isinstance(service["environment"], dict):
+                            # Update VLLM_URL to point to the renamed service
+                            if "VLLM_URL" in service["environment"]:
+                                service["environment"]["VLLM_URL"] = service["environment"]["VLLM_URL"].replace(
+                                    "vllm-server:", "vllm-server-mt:"
+                                )
+                        elif isinstance(service["environment"], list):
+                            # Update VLLM_URL in list format
+                            for i, env_var in enumerate(service["environment"]):
+                                if isinstance(env_var, str) and env_var.startswith("VLLM_URL="):
+                                    service["environment"][i] = env_var.replace(
+                                        "vllm-server:", "vllm-server-mt:"
+                                    )
+                    
+                    # Update depends_on references to renamed services
+                    if "depends_on" in service:
+                        if isinstance(service["depends_on"], list):
+                            for i, dep in enumerate(service["depends_on"]):
+                                if dep == "vllm-server":
+                                    service["depends_on"][i] = "vllm-server-mt"
+                                elif dep == "vllm":
+                                    service["depends_on"][i] = "vllm-mt"
+                        elif isinstance(service["depends_on"], dict):
+                            # Handle dict format (with conditions)
+                            new_depends_on = {}
+                            for dep_name, dep_config in service["depends_on"].items():
+                                if dep_name == "vllm-server":
+                                    new_depends_on["vllm-server-mt"] = dep_config
+                                elif dep_name == "vllm":
+                                    new_depends_on["vllm-mt"] = dep_config
+                                else:
+                                    new_depends_on[dep_name] = dep_config
+                            service["depends_on"] = new_depends_on
+                
                 # Update build path to use BACKENDS_DIR
                 if "build" in service and service["build"] == ".":
                     if repo_root:
@@ -207,9 +274,36 @@ class TemplateManager:
                 elif isinstance(service["networks"], list) and "LTPipeline" not in service["networks"]:
                     service["networks"].append("LTPipeline")
                 
+                # Ensure vLLM model name comes from env (set via CLI)
+                if backend_engine == "vllm":
+                    if "vllm-server" in service_name:
+                        command = service.get("command")
+                        if isinstance(command, list):
+                            if "--model" in command:
+                                model_index = command.index("--model") + 1
+                                if model_index < len(command):
+                                    model_var = f"${{STT_BACKEND_MODEL}}" if backend_type == "stt" else "${MT_BACKEND_MODEL}"
+                                    command[model_index] = model_var
+                            else:
+                                model_var = f"${{STT_BACKEND_MODEL}}" if backend_type == "stt" else "${MT_BACKEND_MODEL}"
+                                command = ["--model", model_var] + command
+                            service["command"] = command
+                        elif isinstance(command, str):
+                            model_var = f"${{STT_BACKEND_MODEL}}" if backend_type == "stt" else "${MT_BACKEND_MODEL}"
+                            service["command"] = command.replace(
+                                "--model Qwen/Qwen2.5-7B-Instruct",
+                                f"--model {model_var}"
+                            )
+                    elif "vllm" in service_name and service_name != "vllm-server" and service_name != "vllm-server-mt":
+                        if "environment" not in service:
+                            service["environment"] = {}
+                        if isinstance(service["environment"], dict):
+                            model_var = f"${{STT_BACKEND_MODEL}}" if backend_type == "stt" else "${MT_BACKEND_MODEL}"
+                            service["environment"]["MODEL_ID"] = model_var
+
                 # Modify GPU settings if provided
                 # For vllm backend, only apply to vllm-server service, not vllm service
-                should_apply_gpu = gpu_device is not None and not (backend_engine == "vllm" and service_name == "vllm")
+                should_apply_gpu = gpu_device is not None and not (backend_engine == "vllm" and "vllm" in service_name and "vllm-server" not in service_name)
                 if should_apply_gpu:
                     if "environment" in service:
                         # Handle environment as list (YAML format with dashes)
@@ -347,7 +441,9 @@ class TemplateManager:
                          http_port: int, frontend_theme: str, hf_token: str = None,
                          external_port: int = None, repo_root: str = None,
                          backends: str = "local", stt_backend_url: str = None,
-                         mt_backend_url: str = None, stt_backend_engine: str = None) -> None:
+                         mt_backend_url: str = None, stt_backend_engine: str = None,
+                         stt_backend_model: str = None, mt_backend_engine: str = None,
+                         mt_backend_model: str = None) -> None:
         """Generate .env file for docker-compose with environment variables.
         
         Args:
@@ -361,6 +457,9 @@ class TemplateManager:
             stt_backend_url: External STT backend URL
             mt_backend_url: External MT backend URL
             stt_backend_engine: STT backend engine (e.g., faster-whisper)
+            stt_backend_model: STT backend model name (e.g., Qwen2.5-Omni-7B)
+            mt_backend_engine: MT backend engine (e.g., vllm)
+            mt_backend_model: MT backend model name (e.g., Qwen/Qwen2.5-7B-Instruct)
         """
         config_dir = Path(output_dir)
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -389,6 +488,10 @@ class TemplateManager:
             f.write(f"BACKENDS_DIR={backends_dir}\n")
             f.write(f"HF_TOKEN={hf_token or ''}\n")
             f.write(f"BACKENDS={backends}\n")
+            if stt_backend_model:
+                f.write(f"STT_BACKEND_MODEL={stt_backend_model}\n")
+            if mt_backend_model:
+                f.write(f"MT_BACKEND_MODEL={mt_backend_model}\n")
             
             # Write STT_BACKEND_URL based on backend mode and engine
             if backends == "external" and stt_backend_url:
@@ -403,4 +506,6 @@ class TemplateManager:
             
             if mt_backend_url:
                 f.write(f"MT_BACKEND_URL={mt_backend_url}\n")
+            elif backends in ["local", "distributed"] and mt_backend_engine == "vllm":
+                f.write(f"MT_BACKEND_URL=http://vllm-mt:8001/mt/\n")
 

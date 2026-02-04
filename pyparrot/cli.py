@@ -90,14 +90,17 @@ def main():
 @click.option("--stt-backend-url", default=None, help="External STT backend URL (when backends=external)")
 @click.option("--mt-backend-url", default=None, help="External MT backend URL (when backends=external)")
 @click.option("--stt-backend-engine", type=click.Choice(["faster-whisper", "vllm"]), default="faster-whisper", help="STT backend engine (for local/distributed)")
-@click.option("--stt-backend-model", type=click.Choice(["large-v2", "Qwen2.5-Omni-7B"]), default="large-v2", help="STT model (for local/distributed)")
+@click.option("--stt-backend-model", type=click.Choice(["large-v2", "Qwen/Qwen2.5-7B-Instruct"]), default="large-v2", help="STT model (for local/distributed)")
 @click.option("--stt-backend-gpu", default=None, help="GPU device ID for STT backend (for local/distributed)")
+@click.option("--mt-backend-engine", type=click.Choice(["vllm"]), default=None, help="MT backend engine (for local/distributed)")
+@click.option("--mt-backend-model", type=click.Choice(["Qwen/Qwen2.5-7B-Instruct"]), default="Qwen/Qwen2.5-7B-Instruct", help="MT model (for local/distributed)")
+@click.option("--mt-backend-gpu", default=None, help="GPU device ID for MT backend (for local/distributed)")
 @click.option("--port", type=int, default=8001, help="Internal port Traefik listens on (mapped from host)")
 @click.option("--external-port", type=int, default=None, help="Externally reachable port (e.g., when behind Nginx). Defaults to --port.")
 @click.option("--domain", default="pyparrot.localhost", help="Domain for the pipeline (use a real domain for public deployments)")
 @click.option("--website-theme", default="defaulttheme", help="Website theme")
 @click.option("--hf-token", default=None, help="HF token for dialog components")
-def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, port, external_port, domain, website_theme, hf_token):
+def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, port, external_port, domain, website_theme, hf_token):
     """Configure a new pipeline and create its configuration directory."""
     try:
         backend_defaults = {
@@ -139,6 +142,9 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
             "stt_backend_engine": stt_backend_engine,
             "stt_backend_model": stt_backend_model,
             "stt_backend_gpu": stt_backend_gpu,
+            "mt_backend_engine": mt_backend_engine,
+            "mt_backend_model": mt_backend_model,
+            "mt_backend_gpu": mt_backend_gpu,
         }
         if port:
             config_data["port"] = port
@@ -148,6 +154,13 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
             config_data["hf_token"] = hf_token
         if external_port:
             config_data["external_port"] = external_port
+
+        # Auto-enable MT backend for cascaded pipelines
+        if type == "cascaded" and mt_backend_engine is None:
+            mt_backend_engine = "vllm"
+
+        # Update config_data with potentially updated mt_backend_engine
+        config_data["mt_backend_engine"] = mt_backend_engine
 
         # Prompt for admin password
         click.echo()
@@ -178,6 +191,8 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 backends_mode=backends,
                 stt_backend_engine=stt_backend_engine,
                 stt_backend_gpu=stt_backend_gpu,
+                mt_backend_engine=mt_backend_engine,
+                mt_backend_gpu=mt_backend_gpu,
                 repo_root=repo_root
             )
             compose_file = config_subdir / "docker-compose.yaml"
@@ -203,7 +218,10 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 backends=backends,
                 stt_backend_url=stt_backend_url,
                 mt_backend_url=mt_backend_url,
-                stt_backend_engine=stt_backend_engine
+                stt_backend_engine=stt_backend_engine,
+                stt_backend_model=stt_backend_model,
+                mt_backend_engine=mt_backend_engine,
+                mt_backend_model=mt_backend_model
             )
             logger.info(f"Generated .env file for docker-compose")
         except Exception as e:
