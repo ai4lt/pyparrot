@@ -208,7 +208,9 @@ class TemplateManager:
                     service["networks"].append("LTPipeline")
                 
                 # Modify GPU settings if provided
-                if gpu_device is not None:
+                # For vllm backend, only apply to vllm-server service, not vllm service
+                should_apply_gpu = gpu_device is not None and not (backend_engine == "vllm" and service_name == "vllm")
+                if should_apply_gpu:
                     if "environment" in service:
                         # Handle environment as list (YAML format with dashes)
                         if isinstance(service["environment"], list):
