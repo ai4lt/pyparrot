@@ -42,12 +42,13 @@ class TemplateManager:
             return tpl_path
         return self.template_dir / f"{component}.yaml"
 
-    def load_template(self, component: str, domain: str = None) -> Dict[str, Any]:
+    def load_template(self, component: str, domain: str = None, debug: bool = False) -> Dict[str, Any]:
         """Load a single template file.
         
         Args:
             component: Component name
             domain: Domain name (used for conditional rendering)
+            debug: Debug mode enabled (for conditional volume mounts)
             
         Returns:
             Parsed YAML template as dictionary
@@ -64,17 +65,21 @@ class TemplateManager:
             # Determine if it's a localhost domain
             is_localhost = domain and ".localhost" in domain
             
+            # Create environment dict for template
+            environment = {"DEBUG_MODE": "true" if debug else "false"}
+            
             template = Template(content)
-            content = template.render(IS_LOCALHOST_DOMAIN=is_localhost)
+            content = template.render(IS_LOCALHOST_DOMAIN=is_localhost, environment=environment)
         
         return yaml.safe_load(content)
 
-    def merge_templates(self, components: List[str], domain: str = None) -> Dict[str, Any]:
+    def merge_templates(self, components: List[str], domain: str = None, debug: bool = False) -> Dict[str, Any]:
         """Merge multiple component templates into a single docker-compose file.
         
         Args:
             components: List of component names to merge
             domain: Domain name (used for conditional rendering)
+            debug: Debug mode enabled
             
         Returns:
             Merged docker-compose configuration
@@ -83,11 +88,11 @@ class TemplateManager:
             raise ValueError("At least one component must be specified")
 
         # Load base template from first component
-        merged = self.load_template(components[0], domain)
+        merged = self.load_template(components[0], domain, debug)
         
         # Merge remaining components
         for component in components[1:]:
-            template = self.load_template(component, domain)
+            template = self.load_template(component, domain, debug)
             self._merge_services(merged, template)
         
         logger.info(f"Merged templates for components: {', '.join(components)}")
@@ -123,7 +128,7 @@ class TemplateManager:
     def generate_compose_file(self, pipeline_type: str, domain: str = None, backends_mode: str = "local", 
                              stt_backend_engine: str = "faster-whisper", stt_backend_gpu: str = None,
                              mt_backend_engine: str = None, mt_backend_gpu: str = None,
-                             repo_root: str = None) -> Dict[str, Any]:
+                             repo_root: str = None, debug: bool = False) -> Dict[str, Any]:
         """Generate docker-compose configuration for a pipeline type.
         
         Args:
@@ -135,6 +140,7 @@ class TemplateManager:
             mt_backend_engine: MT backend engine (e.g., vllm)
             mt_backend_gpu: GPU device ID for MT backend
             repo_root: Repository root path for locating backend services
+            debug: Debug mode enabled
             
         Returns:
             Complete docker-compose configuration
@@ -143,7 +149,7 @@ class TemplateManager:
             raise ValueError(f"Unknown pipeline type: {pipeline_type}")
         
         components = self.PIPELINE_TEMPLATES[pipeline_type]
-        composed = self.merge_templates(components, domain)
+        composed = self.merge_templates(components, domain, debug)
         
         # Add backend services for local/distributed modes
         if backends_mode in ["local", "distributed"]:
@@ -443,7 +449,7 @@ class TemplateManager:
                          backends: str = "local", stt_backend_url: str = None,
                          mt_backend_url: str = None, stt_backend_engine: str = None,
                          stt_backend_model: str = None, mt_backend_engine: str = None,
-                         mt_backend_model: str = None) -> None:
+                         mt_backend_model: str = None, debug: bool = False) -> None:
         """Generate .env file for docker-compose with environment variables.
         
         Args:
@@ -488,6 +494,7 @@ class TemplateManager:
             f.write(f"BACKENDS_DIR={backends_dir}\n")
             f.write(f"HF_TOKEN={hf_token or ''}\n")
             f.write(f"BACKENDS={backends}\n")
+            f.write(f"DEBUG_MODE={'true' if debug else 'false'}\n")
             if stt_backend_model:
                 f.write(f"STT_BACKEND_MODEL={stt_backend_model}\n")
             if mt_backend_model:

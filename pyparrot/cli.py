@@ -7,6 +7,7 @@ import sys
 import getpass
 import subprocess
 import time
+import yaml
 from pathlib import Path
 from .config import PipelineConfig
 from .pipeline import Pipeline
@@ -100,7 +101,8 @@ def main():
 @click.option("--domain", default="pyparrot.localhost", help="Domain for the pipeline (use a real domain for public deployments)")
 @click.option("--website-theme", default="defaulttheme", help="Website theme")
 @click.option("--hf-token", default=None, help="HF token for dialog components")
-def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, port, external_port, domain, website_theme, hf_token):
+@click.option("--debug", is_flag=True, help="Enable debug mode: mount ltfrontend code for live development")
+def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, port, external_port, domain, website_theme, hf_token, debug):
     """Configure a new pipeline and create its configuration directory."""
     try:
         backend_defaults = {
@@ -145,6 +147,7 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
             "mt_backend_engine": mt_backend_engine,
             "mt_backend_model": mt_backend_model,
             "mt_backend_gpu": mt_backend_gpu,
+            "debug": debug,
         }
         if port:
             config_data["port"] = port
@@ -193,7 +196,8 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 stt_backend_gpu=stt_backend_gpu,
                 mt_backend_engine=mt_backend_engine,
                 mt_backend_gpu=mt_backend_gpu,
-                repo_root=repo_root
+                repo_root=repo_root,
+                debug=debug
             )
             compose_file = config_subdir / "docker-compose.yaml"
             template_manager.save_compose_file(compose_config, str(compose_file))
@@ -221,7 +225,8 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 stt_backend_engine=stt_backend_engine,
                 stt_backend_model=stt_backend_model,
                 mt_backend_engine=mt_backend_engine,
-                mt_backend_model=mt_backend_model
+                mt_backend_model=mt_backend_model,
+                debug=debug
             )
             logger.info(f"Generated .env file for docker-compose")
         except Exception as e:
@@ -269,6 +274,8 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
             click.echo(f"  Port: {port}")
         if website_theme:
             click.echo(f"  Website Theme: {website_theme}")
+        if debug:
+            click.echo(f"  Debug Mode: enabled")
         if admin_password:
             click.echo("  Admin password: set")
 
@@ -415,6 +422,21 @@ def start(config_name, component):
             click.echo(click.style(f"Error: {e}", fg="red"), err=True)
             sys.exit(1)
 
+        # Read debug setting from .env file
+        debug = False
+        env_file = config_subdir / ".env"
+        if env_file.exists():
+            from dotenv import dotenv_values
+            env_vars = dotenv_values(env_file)
+            debug = env_vars.get("DEBUG_MODE", "false").lower() == "true"
+
+        # If debug mode, add environment variable for docker-compose
+        env = os.environ.copy()
+        if debug:
+            env["DEBUG_MODE"] = "true"
+        else:
+            env["DEBUG_MODE"] = "false"
+
         # Start command - use 'up -d' instead of 'start' to create containers if they don't exist
         cmd = docker_cmd + ["-f", str(docker_compose_file), "up", "-d"]
 
@@ -428,10 +450,12 @@ def start(config_name, component):
             click.echo(f"Components: {', '.join(component)}")
         else:
             click.echo("Components: all")
+        if debug:
+            click.echo(click.style("✓ Debug mode enabled - ltfrontend code mounted for live development", fg="yellow"))
 
         # Run docker-compose start with retry logic
         try:
-            result = subprocess.run(cmd, cwd=str(config_subdir), capture_output=False)
+            result = subprocess.run(cmd, cwd=str(config_subdir), capture_output=False, env=env)
         except Exception as e:
             click.echo(click.style(f"Error starting containers: {e}", fg="red"), err=True)
             sys.exit(1)

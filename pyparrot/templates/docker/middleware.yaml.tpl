@@ -246,6 +246,13 @@ services:
       THEME: '${FRONTEND_THEME:-defaulttheme}'
       REDIS_HOST: 'redis'
       DOMAIN: '$DOMAIN'
+      {% if 'DEBUG_MODE' in environment and environment.DEBUG_MODE == 'true' %}
+      DEBUG_MODE: 'true'
+      {% endif %}
+    {% if 'DEBUG_MODE' in environment and environment.DEBUG_MODE == 'true' %}
+    volumes:
+      - ${COMPONENTS_DIR}/ltfrontend/ltweb:/src/ltweb
+    {% endif %}
     labels:
       - 'pipeline=${PIPELINE_NAME:-main}'
       - 'traefik.enable=true'
