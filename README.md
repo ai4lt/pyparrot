@@ -60,6 +60,16 @@ pyparrot configure my-pipeline --type cascaded --backends local --stt-backend-gp
 pyparrot configure my-pipeline --type end2end --backends external \
   --stt-backend-url http://my-stt-server:5008/asr \
   --mt-backend-url http://my-mt-server:5009/translate
+
+# Enable HTTPS for localhost development (auto-generates self-signed certificate)
+pyparrot configure my-pipeline --enable-https --domain app.localhost
+
+# Enable HTTPS for production with Let's Encrypt
+pyparrot configure my-pipeline \
+  --enable-https \
+  --domain myapp.example.com \
+  --acme-email admin@example.com \
+  --force-https-redirect
 ```
 
 ### Build and Start

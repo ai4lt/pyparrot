@@ -44,6 +44,15 @@ pyparrot configure CONFIG_NAME [OPTIONS]
   --domain TEXT             Domain for the pipeline (default: pyparrot.localhost)
   --website-theme TEXT      Website theme (default: defaulttheme)
   --hf-token TEXT           HuggingFace token for dialog components
+  --enable-https            Enable HTTPS support (auto-generates self-signed certs
+                            for localhost, uses Let's Encrypt for real domains)
+  --https-port INTEGER      Port for HTTPS traffic (default: 443)
+  --acme-email TEXT         Email for Let's Encrypt ACME registration (required
+                            for non-localhost domains with HTTPS)
+  --acme-staging            Use Let's Encrypt staging server (for testing, avoids
+                            rate limits but issues untrusted certificates)
+  --force-https-redirect    Redirect all HTTP traffic to HTTPS
+  --debug                   Enable debug mode: mount ltfrontend code for live development
   --help                    Show help message
 ```
 
@@ -62,6 +71,23 @@ pyparrot configure my-pipeline --backends external \
 
 # Custom domain and port
 pyparrot configure my-pipeline --domain example.com --port 8080 --external-port 443
+
+# Enable HTTPS for localhost (auto-generates self-signed certificate)
+pyparrot configure my-pipeline --enable-https --domain app.localhost
+
+# Enable HTTPS for production domain with Let's Encrypt
+pyparrot configure my-pipeline \
+  --enable-https \
+  --domain myapp.example.com \
+  --acme-email admin@example.com \
+  --force-https-redirect
+
+# Testing with Let's Encrypt staging (avoids rate limits)
+pyparrot configure my-pipeline \
+  --enable-https \
+  --domain myapp.example.com \
+  --acme-email admin@example.com \
+  --acme-staging
 ```
 
 **Backend Modes:**
@@ -69,11 +95,44 @@ pyparrot configure my-pipeline --domain example.com --port 8080 --external-port 
 - **distributed**: Backends use message queue routing with local containers
 - **external**: Backends are remote services accessed via HTTP URLs
 
+**HTTPS Configuration:**
+
+When `--enable-https` is specified:
+- **Localhost domains** (containing `.localhost`):
+  - Automatically generates self-signed certificates
+  - Certificates stored in `config/<name>/traefik/certs/`
+  - No email required
+  - Useful for local development and testing
+  
+- **Production domains** (e.g., `example.com`):
+  - Uses Let's Encrypt for automatic SSL certificates
+  - Certificates automatically renewed
+  - Requires `--acme-email` for ACME registration (will prompt if not provided)
+  - ACME storage maintained in domain-specific Docker volume (`acme_data_<domain>`)
+  - **Certificate sharing**: Multiple pipelines using the same domain share certificates
+  - **Persistence**: Certificates persist even when individual pipelines are deleted
+  - **⚠️ Rate Limits**: Let's Encrypt allows 50 certs/week per domain
+    - Use `--acme-staging` for testing to avoid rate limits
+    - Staging issues untrusted certs but has no rate limits
+    - Certificates stored per-domain, not per-pipeline
+    - Shared across all pipelines using the same domain
+    - Only manually deleting the volume triggers new requests
+  
+- **Both HTTP and HTTPS ports run simultaneously**:
+  - HTTP port (default: 8001) remains active for Let's Encrypt validation
+  - HTTPS port (default: 443) serves encrypted traffic
+  - Use `--force-https-redirect` to redirect HTTP → HTTPS automatically
+
 **Notes:**
 - Creates a directory under `config/` (or `$PYPARROT_CONFIG_DIR`) with generated files
 - Generates `docker-compose.yaml`, `.env`, and authentication configs
 - Prompts for admin password during first-time configuration
 - For local/distributed modes, automatically sets internal backend URLs
+- HTTPS is fully backward compatible - existing configs work without changes
+- **Certificate storage**:
+  - Self-signed certs (localhost): `~/.pyparrot/certs/<domain>/` (shared across pipelines)
+  - Let's Encrypt certs: Docker volume `acme_data_<domain>` (shared across pipelines)
+  - Deleting a pipeline does NOT delete shared certificates
 
 ---
 

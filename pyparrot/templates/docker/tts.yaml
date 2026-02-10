@@ -12,8 +12,6 @@ services:
     networks:
       - LTPipeline
     restart: on-failure
-    deploy:
-        replicas: 10
 
 networks:
   LTPipeline: {}

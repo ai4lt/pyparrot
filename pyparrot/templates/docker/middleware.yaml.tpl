@@ -3,12 +3,30 @@ version: '3.8'
 services:
   traefik:
     image: 'traefik'
+{% if environment.ENABLE_HTTPS == 'true' and not IS_LOCALHOST_DOMAIN %}
+    user: '${HOST_UID:-0}:${HOST_GID:-0}'
+    cap_add:
+      - NET_BIND_SERVICE
+    group_add:
+      - '${DOCKER_GID:-0}'
+{% endif %}
     volumes:
       - '/var/run/docker.sock:/var/run/docker.sock:ro'
       - './traefik/traefik.yaml:/etc/traefik/traefik.yaml:ro'
       - './traefik/auth/basicauth.txt:/basicauth.txt'
+{% if environment.ENABLE_HTTPS == 'true' %}
+{% if IS_LOCALHOST_DOMAIN %}
+      - './traefik/certs:/etc/traefik/certs:ro'
+      - './traefik/certs/certs.yaml:/etc/traefik/certs/certs.yaml:ro'
+{% else %}
+      - '${ACME_DATA_DIR}:/acme.json'
+{% endif %}
+{% endif %}
     ports:
       - '${HTTP_PORT:-80}:80'
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - '${HTTPS_PORT:-443}:443'
+{% endif %}
     networks:
       - LTPipeline
     labels:
@@ -16,10 +34,23 @@ services:
       - 'traefik.enable=true'
       - 'traefik.http.middlewares.basicauth.basicauth.usersFile=/basicauth.txt'
       # Traefik dashboard
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - 'traefik.http.routers.traefik.tls=true'
+{% if not IS_LOCALHOST_DOMAIN %}
+      - 'traefik.http.routers.traefik.tls.certresolver=letsencrypt'
+{% endif %}
+{% else %}
       - 'traefik.http.routers.traefik.tls=false'
+{% endif %}
       - 'traefik.http.routers.traefik.rule=Host(`${DOMAIN}`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))'
       - 'traefik.http.routers.traefik.service=api@internal'
       - 'traefik.http.routers.traefik.middlewares=basicauth'
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     restart: 'unless-stopped'
 
   dex:
@@ -30,8 +61,13 @@ services:
     environment:
       DOMAIN: "${DOMAIN}"
       HTTP_PORT: "${HTTP_PORT:-8001}"
+{% if environment.ENABLE_HTTPS == 'true' %}
+      DEX_BASE_URL: "https://${EXTERNAL_HTTPS_DOMAIN_PORT:-${DOMAIN}:${HTTPS_PORT:-443}}"
+      DEX_ISSUER: "https://${EXTERNAL_HTTPS_DOMAIN_PORT:-${DOMAIN}:${HTTPS_PORT:-443}}"
+{% else %}
       DEX_BASE_URL: "http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN_PORT:-${DOMAIN}}}"
-      DEX_ISSUER: "http://dex:5556"
+      DEX_ISSUER: "http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN_PORT:-${DOMAIN}}}"
+{% endif %}
       TFA_CLIENT_SECRET: "${TFA_CLIENT_SECRET:-bar}"
     volumes:
       - ./dex/dex.yaml:/etc/dex/config.docker.yaml:ro
@@ -41,16 +77,30 @@ services:
     labels:
       - 'pipeline=${PIPELINE_NAME:-main}'
       - 'traefik.enable=true'
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - 'traefik.http.routers.dex.tls=true'
+{% if not IS_LOCALHOST_DOMAIN %}
+      - 'traefik.http.routers.dex.tls.certresolver=letsencrypt'
+{% endif %}
+      - 'traefik.http.routers.dex.entrypoints=http,https'
+{% else %}
       - 'traefik.http.routers.dex.tls=false'
+      - 'traefik.http.routers.dex.entrypoints=http'
+{% endif %}
+    {% if IS_LOCALHOST_DOMAIN %}
       - "traefik.http.routers.dex.rule=(Host(`${DOMAIN}`) || Host(`host.docker.internal`) || Host(`traefik`)) && PathPrefix(`/dex`)"
-      - "traefik.http.routers.dex.entrypoints=http"
+    {% else %}
+      - "traefik.http.routers.dex.rule=Host(`${DOMAIN}`) && PathPrefix(`/dex`)"
+    {% endif %}
       - "traefik.http.services.dex.loadbalancer.server.port=5556"
 
   traefik-forward-auth:
     image: 'thomseddon/traefik-forward-auth:latest'
     depends_on:
-      - traefik
-      - dex
+      traefik:
+        condition: service_healthy
+      dex:
+        condition: service_started
     command: '--config /auth-rules.ini'
     environment:
       LOG_LEVEL: 'debug'
@@ -58,15 +108,43 @@ services:
       SECRET: "${TFA_SIGNING_SECRET:-XFxy833ngUuK7BgIfIQcot3Jb3H8oHdXrCfTTBCne8E}"
       PROVIDERS_OIDC_CLIENT_ID: traefik-forward-auth
       PROVIDERS_OIDC_CLIENT_SECRET: "${TFA_CLIENT_SECRET:-bar}"
+{% if environment.ENABLE_HTTPS == 'true' %}
+{% if IS_LOCALHOST_DOMAIN %}
+      PROVIDERS_OIDC_ISSUER_URL: 'https://${EXTERNAL_HTTPS_DOMAIN_PORT:-${DOMAIN}:${HTTPS_PORT:-443}}/dex'
+      LOGOUT_REDIRECT: 'https://${EXTERNAL_HTTPS_DOMAIN_PORT:-${DOMAIN}:${HTTPS_PORT:-443}}/'
+      INSECURE_COOKIE: "false"
+      INSECURE_SKIP_VERIFY: "true"
+      AUTH_HOST: '${EXTERNAL_HTTPS_DOMAIN_PORT:-${DOMAIN}:${HTTPS_PORT:-443}}'
+{% else %}
+{% if environment.ACME_STAGING == 'true' %}
+  PROVIDERS_OIDC_ISSUER_URL: 'http://dex:5556/dex'
+{% else %}
+      PROVIDERS_OIDC_ISSUER_URL: 'https://${EXTERNAL_HTTPS_DOMAIN_PORT:-${DOMAIN}:${HTTPS_PORT:-443}}/dex'
+{% endif %}
+      LOGOUT_REDIRECT: 'https://${EXTERNAL_HTTPS_DOMAIN_PORT:-${DOMAIN}:${HTTPS_PORT:-443}}/'
+      INSECURE_COOKIE: "false"
+      INSECURE_SKIP_VERIFY: "true"
+      AUTH_HOST: '${EXTERNAL_HTTPS_DOMAIN_PORT:-${DOMAIN}:${HTTPS_PORT:-443}}'
+{% endif %}
+{% else %}
       PROVIDERS_OIDC_ISSUER_URL: 'http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN}:${HTTP_PORT:-8001}}/dex'
       LOGOUT_REDIRECT: 'http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN}}/'
+      INSECURE_COOKIE: "true"
+      AUTH_HOST: '${EXTERNAL_DOMAIN_PORT:-${DOMAIN}:${HTTP_PORT:-8001}}'
+{% endif %}
       LIFETIME: 604800
       COOKIE_DOMAIN: "${DOMAIN}"
-      INSECURE_COOKIE: "true"
-    {% if IS_LOCALHOST_DOMAIN %}extra_hosts:
+{% if IS_LOCALHOST_DOMAIN %}
+    extra_hosts:
       - "${DOMAIN}:host-gateway"
-    {% endif %}volumes:
+{% endif %}
+    volumes:
       - './traefik/rules.ini:/auth-rules.ini:ro'
+{% if environment.ENABLE_HTTPS == 'true' %}
+{% if IS_LOCALHOST_DOMAIN %}
+      - './traefik/certs/cert.pem:/etc/ssl/certs/ca-certificates.crt:ro'
+{% endif %}
+{% endif %}
     networks:
       - LTPipeline
     labels:
@@ -160,12 +238,26 @@ services:
 
       - 'traefik.http.services.ltapi.loadbalancer.server.port=5000'
 
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - 'traefik.http.routers.ltapi.tls=true'
+{% if not IS_LOCALHOST_DOMAIN %}
+      - 'traefik.http.routers.ltapi.tls.certresolver=letsencrypt'
+{% endif %}
+{% else %}
       - 'traefik.http.routers.ltapi.tls=false'
+{% endif %}
       - 'traefik.http.routers.ltapi.rule=Host(`${DOMAIN}`) && PathPrefix(`/ltapi`)'
       - 'traefik.http.routers.ltapi.service=ltapi'
       - 'traefik.http.routers.ltapi.middlewares=basicauth'
 
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - 'traefik.http.routers.webapi.tls=true'
+{% if not IS_LOCALHOST_DOMAIN %}
+      - 'traefik.http.routers.webapi.tls.certresolver=letsencrypt'
+{% endif %}
+{% else %}
       - 'traefik.http.routers.webapi.tls=false'
+{% endif %}
       - 'traefik.http.routers.webapi.rule=Host(`${DOMAIN}`) && PathPrefix(`/webapi`)'
       - 'traefik.http.routers.webapi.service=ltapi'
       - 'traefik.http.routers.webapi.middlewares=webapi-compat,traefik-forward-auth'
@@ -189,12 +281,26 @@ services:
 
       - 'traefik.http.services.ltapi-stream.loadbalancer.server.port=5000'
 
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - 'traefik.http.routers.ltapi-stream.tls=true'
+{% if not IS_LOCALHOST_DOMAIN %}
+      - 'traefik.http.routers.ltapi-stream.tls.certresolver=letsencrypt'
+{% endif %}
+{% else %}
       - 'traefik.http.routers.ltapi-stream.tls=false'
+{% endif %}
       - 'traefik.http.routers.ltapi-stream.rule=Host(`${DOMAIN}`) && PathPrefix(`/ltapi/stream`)'
       - 'traefik.http.routers.ltapi-stream.service=ltapi-stream'
       - 'traefik.http.routers.ltapi-stream.middlewares=basicauth'
 
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - 'traefik.http.routers.webapi-stream.tls=true'
+{% if not IS_LOCALHOST_DOMAIN %}
+      - 'traefik.http.routers.webapi-stream.tls.certresolver=letsencrypt'
+{% endif %}
+{% else %}
       - 'traefik.http.routers.webapi-stream.tls=false'
+{% endif %}
       - 'traefik.http.routers.webapi-stream.rule=Host(`${DOMAIN}`) && PathPrefix(`/webapi/stream`)'
       - 'traefik.http.routers.webapi-stream.service=ltapi-stream'
       - 'traefik.http.routers.webapi-stream.middlewares=webapi-compat,traefik-forward-auth'
@@ -256,7 +362,16 @@ services:
     labels:
       - 'pipeline=${PIPELINE_NAME:-main}'
       - 'traefik.enable=true'
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - 'traefik.http.routers.frontend.tls=true'
+{% if not IS_LOCALHOST_DOMAIN %}
+      - 'traefik.http.routers.frontend.tls.certresolver=letsencrypt'
+{% endif %}
+      - 'traefik.http.routers.frontend.entrypoints=http,https'
+{% else %}
       - 'traefik.http.routers.frontend.tls=false'
+      - 'traefik.http.routers.frontend.entrypoints=http'
+{% endif %}
       - 'traefik.http.routers.frontend.rule=Host(`${DOMAIN}`)'
       - 'traefik.http.services.frontend.loadbalancer.server.port=5000'
       - 'traefik.http.routers.frontend.middlewares=logout,traefik-forward-auth'
@@ -277,7 +392,14 @@ services:
     labels:
       - 'pipeline=${PIPELINE_NAME:-main}'
       - 'traefik.enable=true'
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - 'traefik.http.routers.archive.tls=true'
+{% if not IS_LOCALHOST_DOMAIN %}
+      - 'traefik.http.routers.archive.tls.certresolver=letsencrypt'
+{% endif %}
+{% else %}
       - 'traefik.http.routers.archive.tls=false'
+{% endif %}
       - 'traefik.http.routers.archive.rule=Host(`${DOMAIN}`) && PathPrefix(`/ltarchive`)'
       - 'traefik.http.services.archive.loadbalancer.server.port=5000'
       - 'traefik.http.routers.archive.middlewares=traefik-forward-auth'
@@ -292,7 +414,14 @@ services:
     labels:
       - 'pipeline=${PIPELINE_NAME:-main}'
       - 'traefik.enable=true'
+{% if environment.ENABLE_HTTPS == 'true' %}
+      - 'traefik.http.routers.mlflow.tls=true'
+{% if not IS_LOCALHOST_DOMAIN %}
+      - 'traefik.http.routers.mlflow.tls.certresolver=letsencrypt'
+{% endif %}
+{% else %}
       - 'traefik.http.routers.mlflow.tls=false'
+{% endif %}
       - 'traefik.http.routers.mlflow.rule=Host(`${DOMAIN}`) && PathPrefix(`/mlflow`)'
       - 'traefik.http.services.mlflow.loadbalancer.server.port=5000'
     volumes:

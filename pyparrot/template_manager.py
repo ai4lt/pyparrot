@@ -1,12 +1,49 @@
 """Manage docker-compose templates and merging."""
 
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+import os
 import yaml
 import logging
+import subprocess
 from jinja2 import Template
 
 logger = logging.getLogger(__name__)
+
+
+def generate_self_signed_cert(domain: str, cert_path: str, key_path: str) -> None:
+    """Generate a self-signed certificate for localhost domains.
+    
+    Args:
+        domain: Domain name (e.g., app.localhost)
+        cert_path: Path to save the certificate file
+        key_path: Path to save the private key file
+    """
+    try:
+        # Generate self-signed certificate using openssl
+        cmd = [
+            "openssl", "req", "-x509", "-newkey", "rsa:4096",
+            "-keyout", key_path,
+            "-out", cert_path,
+            "-days", "365",
+            "-nodes",
+            "-subj", f"/CN={domain}"
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        
+        # Set appropriate permissions
+        Path(cert_path).chmod(0o644)
+        Path(key_path).chmod(0o600)
+        
+        logger.info(f"Generated self-signed certificate: {cert_path}")
+        logger.info(f"Generated private key: {key_path}")
+        
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to generate self-signed certificate: {e.stderr}")
+        raise RuntimeError(f"Certificate generation failed: {e.stderr}")
+    except FileNotFoundError:
+        raise RuntimeError("openssl command not found. Please install OpenSSL.")
 
 
 class TemplateManager:
@@ -42,13 +79,15 @@ class TemplateManager:
             return tpl_path
         return self.template_dir / f"{component}.yaml"
 
-    def load_template(self, component: str, domain: str = None, debug: bool = False) -> Dict[str, Any]:
+    def load_template(self, component: str, domain: str = None, debug: bool = False, enable_https: bool = False,
+                      acme_staging: bool = False) -> Dict[str, Any]:
         """Load a single template file.
         
         Args:
             component: Component name
             domain: Domain name (used for conditional rendering)
             debug: Debug mode enabled (for conditional volume mounts)
+            enable_https: Enable HTTPS support
             
         Returns:
             Parsed YAML template as dictionary
@@ -65,21 +104,29 @@ class TemplateManager:
             # Determine if it's a localhost domain
             is_localhost = domain and ".localhost" in domain
             
-            # Create environment dict for template
-            environment = {"DEBUG_MODE": "true" if debug else "false"}
+            # Create environment dict for template (mimics .env file)
+            environment = {
+                "DEBUG_MODE": "true" if debug else "false",
+                "ENABLE_HTTPS": "true" if enable_https else "false",
+                "FORCE_HTTPS_REDIRECT": "false",  # Can be overridden by .env
+                "ACME_EMAIL": "",  # Placeholder, will be set by .env
+                "ACME_STAGING": "true" if acme_staging else "false",
+            }
             
             template = Template(content)
-            content = template.render(IS_LOCALHOST_DOMAIN=is_localhost, environment=environment)
+            content = template.render(IS_LOCALHOST_DOMAIN=is_localhost, DOMAIN=domain or "", environment=environment)
         
         return yaml.safe_load(content)
 
-    def merge_templates(self, components: List[str], domain: str = None, debug: bool = False) -> Dict[str, Any]:
+    def merge_templates(self, components: List[str], domain: str = None, debug: bool = False, enable_https: bool = False,
+                        acme_staging: bool = False) -> Dict[str, Any]:
         """Merge multiple component templates into a single docker-compose file.
         
         Args:
             components: List of component names to merge
             domain: Domain name (used for conditional rendering)
             debug: Debug mode enabled
+            enable_https: Enable HTTPS support
             
         Returns:
             Merged docker-compose configuration
@@ -88,11 +135,11 @@ class TemplateManager:
             raise ValueError("At least one component must be specified")
 
         # Load base template from first component
-        merged = self.load_template(components[0], domain, debug)
+        merged = self.load_template(components[0], domain, debug, enable_https, acme_staging)
         
         # Merge remaining components
         for component in components[1:]:
-            template = self.load_template(component, domain, debug)
+            template = self.load_template(component, domain, debug, enable_https, acme_staging)
             self._merge_services(merged, template)
         
         logger.info(f"Merged templates for components: {', '.join(components)}")
@@ -128,7 +175,8 @@ class TemplateManager:
     def generate_compose_file(self, pipeline_type: str, domain: str = None, backends_mode: str = "local", 
                              stt_backend_engine: str = "faster-whisper", stt_backend_gpu: str = None,
                              mt_backend_engine: str = None, mt_backend_gpu: str = None,
-                             repo_root: str = None, debug: bool = False) -> Dict[str, Any]:
+                             repo_root: str = None, enable_https: bool = False, debug: bool = False,
+                             acme_staging: bool = False) -> Dict[str, Any]:
         """Generate docker-compose configuration for a pipeline type.
         
         Args:
@@ -140,6 +188,7 @@ class TemplateManager:
             mt_backend_engine: MT backend engine (e.g., vllm)
             mt_backend_gpu: GPU device ID for MT backend
             repo_root: Repository root path for locating backend services
+            enable_https: Enable HTTPS support
             debug: Debug mode enabled
             
         Returns:
@@ -149,7 +198,7 @@ class TemplateManager:
             raise ValueError(f"Unknown pipeline type: {pipeline_type}")
         
         components = self.PIPELINE_TEMPLATES[pipeline_type]
-        composed = self.merge_templates(components, domain, debug)
+        composed = self.merge_templates(components, domain, debug, enable_https, acme_staging)
         
         # Add backend services for local/distributed modes
         if backends_mode in ["local", "distributed"]:
@@ -354,13 +403,21 @@ class TemplateManager:
         
         logger.info(f"Saved docker-compose file: {output_file}")
 
-    def generate_traefik_files(self, config_name: str, encrypted_admin_password: str, output_dir: str) -> None:
+    def generate_traefik_files(self, config_name: str, encrypted_admin_password: str, output_dir: str,
+                              enable_https: bool = False, acme_staging: bool = False,
+                              acme_email: str = None, force_https_redirect: bool = False,
+                              domain: str = None) -> None:
         """Generate traefik configuration files from templates.
         
         Args:
             config_name: Configuration name for the pipeline label
             encrypted_admin_password: Bcrypt encrypted admin password
             output_dir: Directory to save the generated traefik files
+            enable_https: Enable HTTPS support
+            acme_staging: Use Let's Encrypt staging
+            acme_email: Email for Let's Encrypt
+            force_https_redirect: Force HTTPS redirect
+            domain: Domain name
         """
         traefik_dir = Path(output_dir) / "traefik"
         traefik_dir.mkdir(parents=True, exist_ok=True)
@@ -377,6 +434,18 @@ class TemplateManager:
             
             # Replace CONFIG_NAME with actual config name
             traefik_content = traefik_content.replace("CONFIG_NAME", config_name)
+            
+            # Render Jinja2 template with environment variables
+            is_localhost = domain and ".localhost" in domain
+            environment = {
+                "ENABLE_HTTPS": "true" if enable_https else "false",
+                "ACME_STAGING": "true" if acme_staging else "false",
+                "ACME_EMAIL": acme_email or "",
+                "FORCE_HTTPS_REDIRECT": "true" if force_https_redirect else "false",
+            }
+            
+            template = Template(traefik_content)
+            traefik_content = template.render(IS_LOCALHOST_DOMAIN=is_localhost, environment=environment)
             
             traefik_file = traefik_dir / "traefik.yaml"
             with open(traefik_file, "w") as f:
@@ -445,11 +514,15 @@ class TemplateManager:
 
     def generate_env_file(self, output_dir: str, pipeline_name: str, domain: str,
                          http_port: int, frontend_theme: str, hf_token: str = None,
-                         external_port: int = None, repo_root: str = None,
+                         external_port: int = None, external_https_port: int = None,
+                         repo_root: str = None,
                          backends: str = "local", stt_backend_url: str = None,
                          mt_backend_url: str = None, stt_backend_engine: str = None,
                          stt_backend_model: str = None, mt_backend_engine: str = None,
-                         mt_backend_model: str = None, debug: bool = False) -> None:
+                         mt_backend_model: str = None, enable_https: bool = False,
+                         https_port: int = 443, acme_email: str = None,
+                         acme_staging: bool = False, force_https_redirect: bool = False,
+                         debug: bool = False) -> None:
         """Generate .env file for docker-compose with environment variables.
         
         Args:
@@ -459,6 +532,7 @@ class TemplateManager:
             http_port: HTTP port number
             frontend_theme: Frontend theme name
             repo_root: Absolute path to repository root (contains components dir)
+            external_https_port: External HTTPS port for reverse proxy
             backends: Backend integration mode (local, distributed, external)
             stt_backend_url: External STT backend URL
             mt_backend_url: External MT backend URL
@@ -466,6 +540,11 @@ class TemplateManager:
             stt_backend_model: STT backend model name (e.g., Qwen2.5-Omni-7B)
             mt_backend_engine: MT backend engine (e.g., vllm)
             mt_backend_model: MT backend model name (e.g., Qwen/Qwen2.5-7B-Instruct)
+            enable_https: Enable HTTPS support
+            https_port: HTTPS port number
+            acme_email: Email for Let's Encrypt
+            acme_staging: Use Let's Encrypt staging server
+            force_https_redirect: Force redirect HTTP to HTTPS
         """
         config_dir = Path(output_dir)
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -481,20 +560,50 @@ class TemplateManager:
         
         # Use an externally reachable port if provided (e.g., behind Nginx), otherwise fall back to http_port
         effective_external_port = external_port if external_port else http_port
+        # Use an externally reachable HTTPS port if provided (e.g., behind Nginx), otherwise fall back to https_port
+        effective_external_https_port = external_https_port if external_https_port else https_port
         env_file = config_dir / ".env"
         with open(env_file, "w") as f:
+            try:
+                host_uid = os.getuid()
+                host_gid = os.getgid()
+            except AttributeError:
+                host_uid = 0
+                host_gid = 0
+            try:
+                docker_gid = os.stat("/var/run/docker.sock").st_gid
+            except (FileNotFoundError, PermissionError, AttributeError):
+                docker_gid = 0
             f.write(f"DOMAIN={domain}\n")
             f.write(f"FRONTEND_THEME={frontend_theme}\n")
             f.write(f"HTTP_PORT={http_port}\n")
             f.write(f"DOMAIN_PORT={domain}:{http_port}\n")
             f.write(f"EXTERNAL_PORT={effective_external_port}\n")
             f.write(f"EXTERNAL_DOMAIN_PORT={domain}:{effective_external_port}\n")
+            f.write(f"HTTPS_DOMAIN_PORT={domain}:{https_port}\n")
+            f.write(f"EXTERNAL_HTTPS_DOMAIN_PORT={domain}:{effective_external_https_port}\n")
             f.write(f"PIPELINE_NAME={pipeline_name}\n")
+            f.write(f"HOST_UID={host_uid}\n")
+            f.write(f"HOST_GID={host_gid}\n")
+            f.write(f"DOCKER_GID={docker_gid}\n")
             f.write(f"COMPONENTS_DIR={components_dir}\n")
             f.write(f"BACKENDS_DIR={backends_dir}\n")
             f.write(f"HF_TOKEN={hf_token or ''}\n")
             f.write(f"BACKENDS={backends}\n")
             f.write(f"DEBUG_MODE={'true' if debug else 'false'}\n")
+            
+            # HTTPS configuration
+            f.write(f"ENABLE_HTTPS={'true' if enable_https else 'false'}\n")
+            f.write(f"HTTPS_PORT={https_port}\n")
+            f.write(f"FORCE_HTTPS_REDIRECT={'true' if force_https_redirect else 'false'}\n")
+            f.write(f"ACME_STAGING={'true' if acme_staging else 'false'}\n")
+            if acme_email:
+                f.write(f"ACME_EMAIL={acme_email}\n")
+            
+            # ACME data directory for Let's Encrypt certificates (persistent across pipelines)
+            acme_data_dir = str(Path.home() / ".pyparrot" / "acme" / domain / "acme.json")
+            f.write(f"ACME_DATA_DIR={acme_data_dir}\n")
+            
             if stt_backend_model:
                 f.write(f"STT_BACKEND_MODEL={stt_backend_model}\n")
             if mt_backend_model:

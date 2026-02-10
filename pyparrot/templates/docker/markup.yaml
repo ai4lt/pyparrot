@@ -14,8 +14,7 @@ services:
     restart: on-failure
     depends_on:
       - qbmediator
-    deploy:
-        replicas: 10
+
   streamingsummarizer:
     image: registry.isl.iar.kit.edu/streamingsummarizer
     build:
@@ -29,8 +28,7 @@ services:
     restart: on-failure
     depends_on:
       - qbmediator
-    deploy:
-        replicas: 5
+
   streamingpostproduction:
     image: registry.isl.iar.kit.edu/streamingpostproduction
     build:
@@ -44,8 +42,6 @@ services:
     restart: on-failure
     depends_on:
       - qbmediator
-    deploy:
-        replicas: 5
 
 networks:
   LTPipeline: {}

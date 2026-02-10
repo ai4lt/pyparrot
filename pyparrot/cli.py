@@ -22,6 +22,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _is_valid_pem_file(file_path: Path, marker: str) -> bool:
+    """Quick validation for PEM file content.
+    
+    Args:
+        file_path: Path to PEM file
+        marker: PEM marker (e.g., "CERTIFICATE" or "PRIVATE KEY")
+    """
+    try:
+        if not file_path.exists() or file_path.stat().st_size == 0:
+            return False
+        content = file_path.read_text(errors="ignore")
+        return f"BEGIN {marker}" in content and f"END {marker}" in content
+    except Exception:
+        return False
+
+
 def check_docker_daemon():
     """Check if Docker daemon is running and accessible.
     
@@ -98,11 +114,17 @@ def main():
 @click.option("--mt-backend-gpu", default=None, help="GPU device ID for MT backend (for local/distributed)")
 @click.option("--port", type=int, default=8001, help="Internal port Traefik listens on (mapped from host)")
 @click.option("--external-port", type=int, default=None, help="Externally reachable port (e.g., when behind Nginx). Defaults to --port.")
+@click.option("--external-https-port", type=int, default=None, help="Externally reachable HTTPS port (e.g., when behind Nginx). Defaults to --https-port.")
 @click.option("--domain", default="pyparrot.localhost", help="Domain for the pipeline (use a real domain for public deployments)")
 @click.option("--website-theme", default="defaulttheme", help="Website theme")
 @click.option("--hf-token", default=None, help="HF token for dialog components")
+@click.option("--enable-https", is_flag=True, help="Enable HTTPS support (auto-generates self-signed certs for localhost, uses Let's Encrypt for real domains)")
+@click.option("--https-port", type=int, default=443, help="Port for HTTPS traffic")
+@click.option("--acme-email", default=None, help="Email for Let's Encrypt ACME registration (required for non-localhost domains with HTTPS)")
+@click.option("--acme-staging", is_flag=True, help="Use Let's Encrypt staging server (for testing, avoids rate limits)")
+@click.option("--force-https-redirect", is_flag=True, help="Redirect all HTTP traffic to HTTPS")
 @click.option("--debug", is_flag=True, help="Enable debug mode: mount ltfrontend code for live development")
-def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, port, external_port, domain, website_theme, hf_token, debug):
+def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
     """Configure a new pipeline and create its configuration directory."""
     try:
         backend_defaults = {
@@ -132,6 +154,16 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
             config_subdir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Created configuration directory: {config_subdir}")
 
+        # Handle HTTPS configuration
+        is_localhost = ".localhost" in domain
+        if enable_https and not is_localhost and not acme_email:
+            # Prompt for ACME email if HTTPS is enabled for real domain
+            click.echo()
+            acme_email = click.prompt(
+                click.style("Enter email for Let's Encrypt certificate registration", fg="cyan"),
+                type=str
+            )
+        
         # Create configuration data
         config_data = {
             "name": config_name,
@@ -147,6 +179,12 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
             "mt_backend_engine": mt_backend_engine,
             "mt_backend_model": mt_backend_model,
             "mt_backend_gpu": mt_backend_gpu,
+            "enable_https": enable_https,
+            "https_port": https_port,
+            "external_https_port": external_https_port,
+            "acme_email": acme_email,
+            "acme_staging": acme_staging,
+            "force_https_redirect": force_https_redirect,
             "debug": debug,
         }
         if port:
@@ -157,6 +195,8 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
             config_data["hf_token"] = hf_token
         if external_port:
             config_data["external_port"] = external_port
+        if external_https_port:
+            config_data["external_https_port"] = external_https_port
 
         # Auto-enable MT backend for cascaded pipelines
         if type == "cascaded" and mt_backend_engine is None:
@@ -181,6 +221,73 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
         if admin_password:
             pipeline_config.save_admin_password(config_subdir)
             logger.info(f"Saved admin password to {config_subdir / 'dex' / 'dex.env'}")
+        
+        # Generate self-signed certificates if HTTPS is enabled for localhost
+        if enable_https and is_localhost:
+            from .template_manager import generate_self_signed_cert
+            # Store certificates in a shared location based on domain
+            # This allows reuse across different pipelines with the same domain
+            certs_base_dir = Path.home() / ".pyparrot" / "certs"
+            cert_dir = certs_base_dir / domain.replace(":", "_")
+            cert_dir.mkdir(parents=True, exist_ok=True)
+            cert_file = cert_dir / "cert.pem"
+            key_file = cert_dir / "key.pem"
+            
+            # Only generate if they don't exist or are invalid
+            cert_valid = _is_valid_pem_file(cert_file, "CERTIFICATE")
+            key_valid = _is_valid_pem_file(key_file, "PRIVATE KEY")
+            if not cert_valid or not key_valid:
+                generate_self_signed_cert(domain, str(cert_file), str(key_file))
+                logger.info(f"Generated self-signed certificate for {domain}")
+            else:
+                logger.info(f"Reusing existing certificate for {domain} from {cert_dir}")
+            
+            # Copy certificates into config directory for container access
+            config_cert_dir = config_subdir / "traefik" / "certs"
+            config_cert_dir.mkdir(parents=True, exist_ok=True)
+            
+            import shutil
+            dest_cert = config_cert_dir / "cert.pem"
+            dest_key = config_cert_dir / "key.pem"
+            # Replace symlinks with real files to avoid broken mounts in containers
+            for dest in (dest_cert, dest_key):
+                if dest.is_symlink():
+                    dest.unlink()
+            try:
+                if cert_file.resolve() != dest_cert.resolve():
+                    shutil.copyfile(cert_file, dest_cert)
+                if key_file.resolve() != dest_key.resolve():
+                    shutil.copyfile(key_file, dest_key)
+            except FileNotFoundError:
+                # Fallback to simple copy if resolve fails
+                shutil.copyfile(cert_file, dest_cert)
+                shutil.copyfile(key_file, dest_key)
+            
+            # Write certs.yaml for Traefik file provider
+            certs_yaml_path = config_cert_dir / "certs.yaml"
+            certs_yaml_path.write_text(
+                "tls:\n"
+                "  certificates:\n"
+                "    - certFile: /etc/traefik/certs/cert.pem\n"
+                "      keyFile: /etc/traefik/certs/key.pem\n"
+            )
+            
+            logger.info(f"Certificates copied to {config_cert_dir}")
+        
+        # Create ACME data directory for Let's Encrypt certificates (shared across pipelines)
+        if enable_https and domain and ".localhost" not in domain:
+            acme_dir = Path.home() / ".pyparrot" / "acme" / domain
+            acme_dir.mkdir(parents=True, exist_ok=True)
+            acme_file = acme_dir / "acme.json"
+            # Initialize empty acme.json if it doesn't exist (Traefik will populate it)
+            if not acme_file.exists():
+                acme_file.write_text("{}")
+            # Traefik requires restrictive permissions on acme.json (600)
+            try:
+                acme_file.chmod(0o600)
+            except OSError:
+                logger.warning(f"Could not set permissions on ACME file: {acme_file}")
+            logger.info(f"ACME data directory prepared at {acme_dir}")
 
         # Generate and save docker-compose file
         template_manager = TemplateManager()
@@ -197,7 +304,9 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 mt_backend_engine=mt_backend_engine,
                 mt_backend_gpu=mt_backend_gpu,
                 repo_root=repo_root,
-                debug=debug
+                enable_https=enable_https,
+                debug=debug,
+                acme_staging=acme_staging
             )
             compose_file = config_subdir / "docker-compose.yaml"
             template_manager.save_compose_file(compose_config, str(compose_file))
@@ -218,6 +327,7 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 frontend_theme=website_theme,
                 hf_token=hf_token,
                 external_port=external_port,
+                external_https_port=external_https_port,
                 repo_root=repo_root,
                 backends=backends,
                 stt_backend_url=stt_backend_url,
@@ -226,6 +336,11 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 stt_backend_model=stt_backend_model,
                 mt_backend_engine=mt_backend_engine,
                 mt_backend_model=mt_backend_model,
+                enable_https=enable_https,
+                https_port=https_port,
+                acme_email=acme_email,
+                acme_staging=acme_staging,
+                force_https_redirect=force_https_redirect,
                 debug=debug
             )
             logger.info(f"Generated .env file for docker-compose")
@@ -243,7 +358,16 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 password_bytes = admin_password.encode('utf-8')
                 hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=10)).decode('utf-8')
                 
-                template_manager.generate_traefik_files(config_name, hashed_password, str(config_subdir))
+                template_manager.generate_traefik_files(
+                    config_name, 
+                    hashed_password, 
+                    str(config_subdir),
+                    enable_https=enable_https,
+                    acme_staging=acme_staging,
+                    acme_email=acme_email,
+                    force_https_redirect=force_https_redirect,
+                    domain=domain
+                )
                 logger.info(f"Generated traefik configuration files in {config_subdir}/traefik")
                 
                 # Generate dex configuration

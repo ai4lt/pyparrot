@@ -79,6 +79,12 @@ class PipelineConfig(BaseModel):
     admin_password: Optional[str] = Field(default=None, description="Admin password")
     domain: str = Field(default="pyparrot.localhost", description="Domain for the pipeline")
     external_port: Optional[int] = Field(default=None, description="Externally reachable port when behind a reverse proxy")
+    external_https_port: Optional[int] = Field(default=None, description="Externally reachable HTTPS port when behind a reverse proxy")
+    enable_https: bool = Field(default=False, description="Enable HTTPS support")
+    https_port: int = Field(default=443, description="Port for HTTPS traffic")
+    acme_email: Optional[str] = Field(default=None, description="Email for Let's Encrypt ACME registration")
+    acme_staging: bool = Field(default=False, description="Use Let's Encrypt staging server (for testing)")
+    force_https_redirect: bool = Field(default=False, description="Force redirect HTTP to HTTPS")
 
     class Config:
         json_schema_extra = {

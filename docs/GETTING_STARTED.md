@@ -100,6 +100,46 @@ Configuration options:
 - `--external-port` - Public port if behind reverse proxy
 - `--website-theme` - Frontend theme (default: defaulttheme)
 - `--hf-token` - HuggingFace token for dialog components
+- `--enable-https` - Enable HTTPS support
+- `--https-port` - Port for HTTPS traffic (default: 443)
+- `--acme-email` - Email for Let's Encrypt (required for production domains)
+- `--acme-staging` - Use Let's Encrypt staging (for testing, avoids rate limits)
+- `--force-https-redirect` - Redirect HTTP to HTTPS automatically
+
+**HTTPS Examples:**
+
+For local development with self-signed certificate:
+```bash
+pyparrot configure my-pipeline --enable-https --domain app.localhost
+```
+
+For production with Let's Encrypt:
+```bash
+pyparrot configure my-pipeline \
+  --enable-https \
+  --domain myapp.example.com \
+  --acme-email admin@example.com \
+  --force-https-redirect
+```
+
+For testing with Let's Encrypt staging (avoids rate limits):
+```bash
+pyparrot configure my-pipeline \
+  --enable-https \
+  --domain myapp.example.com \
+  --acme-email admin@example.com \
+  --acme-staging
+```
+
+**⚠️ Let's Encrypt Rate Limits:**
+- Production: 50 certificates per domain per week
+- Use `--acme-staging` for testing to avoid hitting limits
+- **Certificates are shared across pipelines**:
+  - Self-signed (localhost): Stored in `~/.pyparrot/certs/<domain>/`
+  - Let's Encrypt: Stored in Docker volume `acme_data_<domain>`
+  - Multiple pipelines using the same domain share the same certificate
+  - Deleting a pipeline does NOT delete the shared certificate
+  - Only manually deleting the volume/directory triggers new requests
 
 The configure command will:
 - Create a configuration directory under `config/<name>/`
