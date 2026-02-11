@@ -69,6 +69,7 @@ class PipelineConfig(BaseModel):
     backend_components: List[str] = Field(default_factory=list, description="Required backend components for this pipeline type")
     stt_backend_url: Optional[str] = Field(default=None, description="External backend URL for speech-to-text (used when backends=external)")
     mt_backend_url: Optional[str] = Field(default=None, description="External backend URL for machine translation (used when backends=external)")
+    tts_backend_url: Optional[str] = Field(default=None, description="External backend URL for text-to-speech (used when backends=external)")
     stt_backend_engine: str = Field(default="faster-whisper", description="STT backend engine (faster-whisper) for local/distributed modes")
     stt_backend_model: str = Field(default="large-v2", description="STT model (large-v2) for local/distributed modes")
     stt_backend_gpu: Optional[str] = Field(default=None, description="GPU device ID for STT backend (e.g., '0', '1', or None for CPU)")

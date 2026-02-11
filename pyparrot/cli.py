@@ -106,6 +106,7 @@ def main():
 )
 @click.option("--stt-backend-url", default=None, help="External STT backend URL (when backends=external)")
 @click.option("--mt-backend-url", default=None, help="External MT backend URL (when backends=external)")
+@click.option("--tts-backend-url", default=None, help="External TTS backend URL (when backends=external)")
 @click.option("--stt-backend-engine", type=click.Choice(["faster-whisper", "vllm"]), default="faster-whisper", help="STT backend engine (for local/distributed)")
 @click.option("--stt-backend-model", type=click.Choice(["large-v2", "Qwen/Qwen2.5-7B-Instruct"]), default="large-v2", help="STT model (for local/distributed)")
 @click.option("--stt-backend-gpu", default=None, help="GPU device ID for STT backend (for local/distributed)")
@@ -124,7 +125,7 @@ def main():
 @click.option("--acme-staging", is_flag=True, help="Use Let's Encrypt staging server (for testing, avoids rate limits)")
 @click.option("--force-https-redirect", is_flag=True, help="Redirect all HTTP traffic to HTTPS")
 @click.option("--debug", is_flag=True, help="Enable debug mode: mount ltfrontend code for live development")
-def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
+def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
     """Configure a new pipeline and create its configuration directory."""
     try:
         backend_defaults = {
@@ -173,6 +174,7 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
             "backend_components": backend_defaults.get(type, []),
             "stt_backend_url": stt_backend_url,
             "mt_backend_url": mt_backend_url,
+            "tts_backend_url": tts_backend_url,
             "stt_backend_engine": stt_backend_engine,
             "stt_backend_model": stt_backend_model,
             "stt_backend_gpu": stt_backend_gpu,
@@ -332,6 +334,7 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
                 backends=backends,
                 stt_backend_url=stt_backend_url,
                 mt_backend_url=mt_backend_url,
+                tts_backend_url=tts_backend_url,
                 stt_backend_engine=stt_backend_engine,
                 stt_backend_model=stt_backend_model,
                 mt_backend_engine=mt_backend_engine,
@@ -393,6 +396,8 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, stt_
             click.echo(f"  STT backend URL: {stt_backend_url}")
         if mt_backend_url:
             click.echo(f"  MT backend URL: {mt_backend_url}")
+        if tts_backend_url:
+            click.echo(f"  TTS backend URL: {tts_backend_url}")
         click.echo(f"  Domain: {domain}")
         if port:
             click.echo(f"  Port: {port}")
@@ -631,8 +636,13 @@ def start(config_name, component):
                 backends_mode = env_vars.get("BACKENDS", "local")
                 stt_url = env_vars.get("STT_BACKEND_URL")
                 mt_url = env_vars.get("MT_BACKEND_URL")
+                tts_url = env_vars.get("TTS_BACKEND_URL")
+                # Allow overriding the registration name/code used when calling ltapi/register_worker.
+                # If you want the ASR to be shown as "Transcript", set `STT_BACKEND_NAME=mult57` in the .env.
+                stt_name = env_vars.get("STT_BACKEND_NAME", "mult57")
+                mt_name = env_vars.get("MT_BACKEND_NAME", "mt")
                 
-                if stt_url or mt_url:
+                if stt_url or mt_url or tts_url:
                     click.echo(f"Registering backends ({backends_mode} mode)...")
                     
                     # Register STT backend
@@ -642,7 +652,7 @@ def start(config_name, component):
                             "exec", "-T", "ltapi", "curl", "-s",
                             "-H", "Content-Type: application/json",
                             "http://ltapi:5000/ltapi/register_worker",
-                            "-d", f'{{"component": "asr", "name": "stt", "server": "{stt_url}"}}'
+                            "-d", f'{{"component": "asr", "name": "{stt_name}", "server": "{stt_url}"}}'
                         ]
                         stt_result = subprocess.run(stt_cmd, capture_output=True, text=True)
                         click.echo(f"STT registration response: {stt_result.stdout} (exit: {stt_result.returncode})")
@@ -658,7 +668,7 @@ def start(config_name, component):
                             "exec", "-T", "ltapi", "curl", "-s",
                             "-H", "Content-Type: application/json",
                             "http://ltapi:5000/ltapi/register_worker",
-                            "-d", f'{{"component": "mt", "name": "mt", "server": "{mt_url}"}}'
+                            "-d", f'{{"component": "mt", "name": "{mt_name}", "server": "{mt_url}"}}'
                         ]
                         mt_result = subprocess.run(mt_cmd, capture_output=True, text=True)
                         click.echo(f"MT registration response: {mt_result.stdout} (exit: {mt_result.returncode})")
@@ -666,6 +676,22 @@ def start(config_name, component):
                             click.echo(click.style(f"✓ MT backend registered: {mt_url}", fg="green"))
                         else:
                             click.echo(click.style(f"⚠ Warning: Could not register MT backend: {mt_result.stderr}", fg="yellow"))
+
+                    # Register TTS backend
+                    if tts_url:
+                        tts_cmd = docker_cmd + [
+                            "-f", str(config_subdir / "docker-compose.yaml"),
+                            "exec", "-T", "ltapi", "curl", "-s",
+                            "-H", "Content-Type: application/json",
+                            "http://ltapi:5000/ltapi/register_worker",
+                            "-d", f'{{"component": "tts", "name": "tts", "server": "{tts_url}"}}'
+                        ]
+                        tts_result = subprocess.run(tts_cmd, capture_output=True, text=True)
+                        click.echo(f"TTS registration response: {tts_result.stdout} (exit: {tts_result.returncode})")
+                        if tts_result.returncode == 0:
+                            click.echo(click.style(f"✓ TTS backend registered: {tts_url}", fg="green"))
+                        else:
+                            click.echo(click.style(f"⚠ Warning: Could not register TTS backend: {tts_result.stderr}", fg="yellow"))
         else:
             click.echo(click.style(f"✗ Start failed with exit code {result.returncode}", fg="red"), err=True)
             sys.exit(result.returncode)

@@ -32,6 +32,18 @@ pyparrot configure my-pipeline \
   --port 8001
 ```
 
+Or for dialog with external TTS:
+
+```bash
+pyparrot configure my-pipeline \
+  --type dialog \
+  --backends external \
+  --stt-backend-url http://my-stt-server.com:5000 \
+  --tts-backend-url http://my-tts-server.com:5000 \
+  --domain example.com \
+  --port 8001
+```
+
 ### 2. Generated .env File
 
 The `.env` file in the config directory will contain:
@@ -49,6 +61,7 @@ HF_TOKEN=
 BACKENDS=external
 STT_BACKEND_URL=http://my-stt-server.com:5000
 MT_BACKEND_URL=http://my-mt-server.com:5000
+TTS_BACKEND_URL=http://my-tts-server.com:5000
 ```
 
 ### 3. Start Pipeline with Automatic Backend Registration
@@ -66,11 +79,15 @@ During start, the following operations occur:
 3. External backends are registered (if configured):
    - **STT Backend**: `curl` to `ltapi:5000/ltapi/register_worker` with:
      ```json
-     {"component": "asr", "name": "stt", "server": "http://my-stt-server.com:5000"}
+     {"component": "asr", "name": "mult57", "server": "http://my-stt-server.com:5000"}
      ```
    - **MT Backend**: `curl` to `ltapi:5000/ltapi/register_worker` with:
      ```json
      {"component": "mt", "name": "mt", "server": "http://my-mt-server.com:5000"}
+     ```
+   - **TTS Backend**: `curl` to `ltapi:5000/ltapi/register_worker` with:
+     ```json
+     {"component": "tts", "name": "tts", "server": "http://my-tts-server.com:5000"}
      ```
 
 ## Backend Modes
@@ -86,7 +103,7 @@ During start, the following operations occur:
 - `BACKENDS=distributed` in .env
 
 ### external
-- External backend services for STT/MT
+- External backend services for STT/MT/TTS
 - Only requires URLs in configuration
 - `BACKENDS=external` in .env
 - Backend URLs stored in `.env` and read during start
@@ -109,15 +126,16 @@ During start, the following operations occur:
 @click.option("--backends", type=click.Choice(["local", "distributed", "external"]))
 @click.option("--stt-backend-url", default=None)
 @click.option("--mt-backend-url", default=None)
-def configure(config_name, backends, stt_backend_url, mt_backend_url, ...):
+@click.option("--tts-backend-url", default=None)
+def configure(config_name, backends, stt_backend_url, mt_backend_url, tts_backend_url, ...):
     # Passed to template_manager.generate_env_file()
 ```
 
 ### Environment File Generation (template_manager.py)
 
 ```python
-def generate_env_file(self, ..., backends="local", stt_backend_url=None, mt_backend_url=None):
-    # Writes BACKENDS, STT_BACKEND_URL, MT_BACKEND_URL to .env
+def generate_env_file(self, ..., backends="local", stt_backend_url=None, mt_backend_url=None, tts_backend_url=None):
+  # Writes BACKENDS, STT_BACKEND_URL, MT_BACKEND_URL, TTS_BACKEND_URL to .env
 ```
 
 ### Start Command (cli.py)
@@ -129,6 +147,7 @@ def start(config_name, component):
     # 3. If backends=external:
     #    - Register STT backend via curl (if url provided)
     #    - Register MT backend via curl (if url provided)
+    #    - Register TTS backend via curl (if url provided)
 ```
 
 ## Configuration Model (config.py)
@@ -139,6 +158,7 @@ class PipelineConfig(BaseModel):
     backend_components: List[str] = []
     stt_backend_url: Optional[str] = None
     mt_backend_url: Optional[str] = None
+  tts_backend_url: Optional[str] = None
 ```
 
 ## Error Handling

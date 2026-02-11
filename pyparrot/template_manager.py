@@ -517,7 +517,8 @@ class TemplateManager:
                          external_port: int = None, external_https_port: int = None,
                          repo_root: str = None,
                          backends: str = "local", stt_backend_url: str = None,
-                         mt_backend_url: str = None, stt_backend_engine: str = None,
+                         mt_backend_url: str = None, tts_backend_url: str = None,
+                         stt_backend_engine: str = None,
                          stt_backend_model: str = None, mt_backend_engine: str = None,
                          mt_backend_model: str = None, enable_https: bool = False,
                          https_port: int = 443, acme_email: str = None,
@@ -536,6 +537,7 @@ class TemplateManager:
             backends: Backend integration mode (local, distributed, external)
             stt_backend_url: External STT backend URL
             mt_backend_url: External MT backend URL
+            tts_backend_url: External TTS backend URL
             stt_backend_engine: STT backend engine (e.g., faster-whisper)
             stt_backend_model: STT backend model name (e.g., Qwen2.5-Omni-7B)
             mt_backend_engine: MT backend engine (e.g., vllm)
@@ -624,4 +626,7 @@ class TemplateManager:
                 f.write(f"MT_BACKEND_URL={mt_backend_url}\n")
             elif backends in ["local", "distributed"] and mt_backend_engine == "vllm":
                 f.write(f"MT_BACKEND_URL=http://vllm-mt:8001/mt/\n")
+
+            if tts_backend_url:
+                f.write(f"TTS_BACKEND_URL={tts_backend_url}\n")
 
