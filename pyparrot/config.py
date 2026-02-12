@@ -95,6 +95,7 @@ class PipelineConfig(BaseModel):
     acme_email: Optional[str] = Field(default=None, description="Email for Let's Encrypt ACME registration")
     acme_staging: bool = Field(default=False, description="Use Let's Encrypt staging server (for testing)")
     force_https_redirect: bool = Field(default=False, description="Force redirect HTTP to HTTPS")
+    slide_support: bool = Field(default=False, description="Enable slide viewer support in frontend")
 
     class Config:
         json_schema_extra = {

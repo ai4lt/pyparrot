@@ -55,7 +55,8 @@ class TemplateManager:
         "cascaded": ["middleware", "asr", "mt"],
         "LT.2025": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
         "dialog": ["middleware", "asr", "tts", "dialog"],
-        "BOOM": ["middleware", "asr"],
+        "BOOM-light": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
+        "BOOM": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
     }
 
     def __init__(self):
@@ -559,6 +560,7 @@ class TemplateManager:
                          mt_backend_model: str = None, enable_https: bool = False,
                          https_port: int = 443, acme_email: str = None,
                          acme_staging: bool = False, force_https_redirect: bool = False,
+                         slide_support: bool = False,
                          debug: bool = False) -> None:
         """Generate .env file for docker-compose with environment variables.
         
@@ -590,6 +592,7 @@ class TemplateManager:
             acme_email: Email for Let's Encrypt
             acme_staging: Use Let's Encrypt staging server
             force_https_redirect: Force redirect HTTP to HTTPS
+            slide_support: Enable slide viewer support
         """
         config_dir = Path(output_dir)
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -636,6 +639,7 @@ class TemplateManager:
             f.write(f"HF_TOKEN={hf_token or ''}\n")
             f.write(f"BACKENDS={backends}\n")
             f.write(f"DEBUG_MODE={'true' if debug else 'false'}\n")
+            f.write(f"SLIDE_SUPPORT={'true' if slide_support else 'false'}\n")
             
             # HTTPS configuration
             f.write(f"ENABLE_HTTPS={'true' if enable_https else 'false'}\n")

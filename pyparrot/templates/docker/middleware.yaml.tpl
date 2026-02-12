@@ -352,6 +352,7 @@ services:
       THEME: '${FRONTEND_THEME:-defaulttheme}'
       REDIS_HOST: 'redis'
       DOMAIN: '$DOMAIN'
+      SLIDE_SUPPORT: '${SLIDE_SUPPORT:-false}'
       {% if 'DEBUG_MODE' in environment and environment.DEBUG_MODE == 'true' %}
       DEBUG_MODE: 'true'
       {% endif %}

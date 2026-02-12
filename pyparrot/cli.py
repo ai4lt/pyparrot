@@ -94,7 +94,7 @@ def main():
 @click.argument("config_name")
 @click.option(
     "--type",
-    type=click.Choice(["end2end", "cascaded", "LT.2025", "dialog", "BOOM"]),
+    type=click.Choice(["end2end", "cascaded", "LT.2025", "dialog", "BOOM-light","BOOM"]),
     default="end2end",
     help="Configuration type",
 )
@@ -142,6 +142,8 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_
             "cascaded": ["stt", "mt"],
             "LT.2025": ["stt", "mt", "tts"],
             "dialog": ["stt", "tts"],
+            "BOOM-light": ["stt", "mt", "tts"],
+            "BOOM": ["stt", "mt", "tts"],
         }
         # Determine config directory
         config_dir = os.getenv("PYPARROT_CONFIG_DIR")
@@ -225,8 +227,12 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_
             mt_backend_engine = "vllm"
 
         # Auto-enable TTS backend for pipelines that include TTS
-        if backends in ["local", "distributed"] and type in ["LT.2025", "dialog"] and tts_backend_engine is None:
+        if backends in ["local", "distributed"] and type in ["LT.2025", "dialog", "BOOM-light", "BOOM"] and tts_backend_engine is None:
             tts_backend_engine = "tts-kokoro"
+
+        # Auto-enable SLIDE_SUPPORT for BOOM-light and BOOM pipelines
+        slide_support = type in ["BOOM-light", "BOOM"]
+        config_data["slide_support"] = slide_support
 
         # Update config_data with potentially updated backend engines
         config_data["mt_backend_engine"] = mt_backend_engine
@@ -381,6 +387,7 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_
                 acme_email=acme_email,
                 acme_staging=acme_staging,
                 force_https_redirect=force_https_redirect,
+                slide_support=slide_support,
                 debug=debug
             )
             logger.info(f"Generated .env file for docker-compose")
