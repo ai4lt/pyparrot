@@ -49,3 +49,9 @@
 [submodule "backends/vllmserver"]
 	path = backends/vllmserver
 	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/inference/vllmserver.git
+[submodule "backends/tts-kokoro"]
+	path = backends/tts-kokoro
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/inference/tts-kokoro.git
+[submodule "backends/huggingface-tgi"]
+	path = backends/huggingface-tgi
+	url = git@gitlab.kit.edu:kit/isl-ai4lt/lt-middleware/inference/llm-gemma.git
