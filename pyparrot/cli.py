@@ -107,12 +107,21 @@ def main():
 @click.option("--stt-backend-url", default=None, help="External STT backend URL (when backends=external)")
 @click.option("--mt-backend-url", default=None, help="External MT backend URL (when backends=external)")
 @click.option("--tts-backend-url", default=None, help="External TTS backend URL (when backends=external)")
+@click.option("--summarizer-backend-url", default=None, help="External Summarizer backend URL")
+@click.option("--text-structurer-online-url", default=None, help="External Text Structurer online model URL")
+@click.option("--text-structurer-offline-url", default=None, help="External Text Structurer offline model URL")
+@click.option("--llm-backend-url", default=None, help="External LLM backend URL")
 @click.option("--stt-backend-engine", type=click.Choice(["faster-whisper", "vllm"]), default="faster-whisper", help="STT backend engine (for local/distributed)")
 @click.option("--stt-backend-model", type=click.Choice(["large-v2", "Qwen/Qwen2.5-7B-Instruct"]), default="large-v2", help="STT model (for local/distributed)")
 @click.option("--stt-backend-gpu", default=None, help="GPU device ID for STT backend (for local/distributed)")
 @click.option("--mt-backend-engine", type=click.Choice(["vllm"]), default=None, help="MT backend engine (for local/distributed)")
 @click.option("--mt-backend-model", type=click.Choice(["Qwen/Qwen2.5-7B-Instruct"]), default="Qwen/Qwen2.5-7B-Instruct", help="MT model (for local/distributed)")
 @click.option("--mt-backend-gpu", default=None, help="GPU device ID for MT backend (for local/distributed)")
+@click.option("--tts-backend-engine", type=click.Choice(["tts-kokoro"]), default=None, help="TTS backend engine (for local/distributed)")
+@click.option("--tts-backend-gpu", default=None, help="GPU device ID for TTS backend (for local/distributed)")
+@click.option("--llm-backend-engine", type=click.Choice(["huggingface-tgi"]), default=None, help="LLM backend engine (for local/distributed)")
+@click.option("--llm-backend-model", default="google/gemma-3-12b-it", help="LLM model ID (for local/distributed)")
+@click.option("--llm-backend-gpu", default=None, help="GPU device ID for LLM backend (for local/distributed)")
 @click.option("--port", type=int, default=8001, help="Internal port Traefik listens on (mapped from host)")
 @click.option("--external-port", type=int, default=None, help="Externally reachable port (e.g., when behind Nginx). Defaults to --port.")
 @click.option("--external-https-port", type=int, default=None, help="Externally reachable HTTPS port (e.g., when behind Nginx). Defaults to --https-port.")
@@ -125,12 +134,14 @@ def main():
 @click.option("--acme-staging", is_flag=True, help="Use Let's Encrypt staging server (for testing, avoids rate limits)")
 @click.option("--force-https-redirect", is_flag=True, help="Redirect all HTTP traffic to HTTPS")
 @click.option("--debug", is_flag=True, help="Enable debug mode: mount ltfrontend code for live development")
-def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
+def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, llm_backend_engine, llm_backend_model, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
     """Configure a new pipeline and create its configuration directory."""
     try:
         backend_defaults = {
             "end2end": ["stt"],
             "cascaded": ["stt", "mt"],
+            "LT.2025": ["stt", "mt", "tts"],
+            "dialog": ["stt", "tts"],
         }
         # Determine config directory
         config_dir = os.getenv("PYPARROT_CONFIG_DIR")
@@ -175,12 +186,21 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_
             "stt_backend_url": stt_backend_url,
             "mt_backend_url": mt_backend_url,
             "tts_backend_url": tts_backend_url,
+            "summarizer_backend_url": summarizer_backend_url,
+            "text_structurer_online_url": text_structurer_online_url,
+            "text_structurer_offline_url": text_structurer_offline_url,
+            "llm_backend_url": llm_backend_url,
             "stt_backend_engine": stt_backend_engine,
             "stt_backend_model": stt_backend_model,
             "stt_backend_gpu": stt_backend_gpu,
             "mt_backend_engine": mt_backend_engine,
             "mt_backend_model": mt_backend_model,
             "mt_backend_gpu": mt_backend_gpu,
+            "tts_backend_engine": tts_backend_engine,
+            "tts_backend_gpu": tts_backend_gpu,
+            "llm_backend_engine": llm_backend_engine,
+            "llm_backend_model": llm_backend_model,
+            "llm_backend_gpu": llm_backend_gpu,
             "enable_https": enable_https,
             "https_port": https_port,
             "external_https_port": external_https_port,
@@ -204,8 +224,14 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_
         if type == "cascaded" and mt_backend_engine is None:
             mt_backend_engine = "vllm"
 
-        # Update config_data with potentially updated mt_backend_engine
+        # Auto-enable TTS backend for pipelines that include TTS
+        if backends in ["local", "distributed"] and type in ["LT.2025", "dialog"] and tts_backend_engine is None:
+            tts_backend_engine = "tts-kokoro"
+
+        # Update config_data with potentially updated backend engines
         config_data["mt_backend_engine"] = mt_backend_engine
+        config_data["tts_backend_engine"] = tts_backend_engine
+        config_data["llm_backend_engine"] = llm_backend_engine
 
         # Prompt for admin password
         click.echo()
@@ -305,6 +331,10 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_
                 stt_backend_gpu=stt_backend_gpu,
                 mt_backend_engine=mt_backend_engine,
                 mt_backend_gpu=mt_backend_gpu,
+                tts_backend_engine=tts_backend_engine,
+                tts_backend_gpu=tts_backend_gpu,
+                llm_backend_engine=llm_backend_engine,
+                llm_backend_gpu=llm_backend_gpu,
                 repo_root=repo_root,
                 enable_https=enable_https,
                 debug=debug,
@@ -335,10 +365,17 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_
                 stt_backend_url=stt_backend_url,
                 mt_backend_url=mt_backend_url,
                 tts_backend_url=tts_backend_url,
+                summarizer_backend_url=summarizer_backend_url,
+                text_structurer_online_url=text_structurer_online_url,
+                text_structurer_offline_url=text_structurer_offline_url,
+                llm_backend_url=llm_backend_url,
                 stt_backend_engine=stt_backend_engine,
+                tts_backend_engine=tts_backend_engine,
                 stt_backend_model=stt_backend_model,
                 mt_backend_engine=mt_backend_engine,
                 mt_backend_model=mt_backend_model,
+                llm_backend_engine=llm_backend_engine,
+                llm_backend_model=llm_backend_model,
                 enable_https=enable_https,
                 https_port=https_port,
                 acme_email=acme_email,
@@ -398,6 +435,18 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_
             click.echo(f"  MT backend URL: {mt_backend_url}")
         if tts_backend_url:
             click.echo(f"  TTS backend URL: {tts_backend_url}")
+        if tts_backend_engine:
+            click.echo(f"  TTS backend engine: {tts_backend_engine}")
+        if summarizer_backend_url:
+            click.echo(f"  Summarizer backend URL: {summarizer_backend_url}")
+        if text_structurer_online_url:
+            click.echo(f"  Text Structurer online URL: {text_structurer_online_url}")
+        if text_structurer_offline_url:
+            click.echo(f"  Text Structurer offline URL: {text_structurer_offline_url}")
+        if llm_backend_url:
+            click.echo(f"  LLM backend URL: {llm_backend_url}")
+        if llm_backend_engine:
+            click.echo(f"  LLM backend engine: {llm_backend_engine}")
         click.echo(f"  Domain: {domain}")
         if port:
             click.echo(f"  Port: {port}")

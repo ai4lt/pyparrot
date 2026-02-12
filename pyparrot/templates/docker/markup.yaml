@@ -8,6 +8,10 @@ services:
       context: ${COMPONENTS_DIR}/streamingtextstructurer
     environment:
       - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+      - TEXT_STRUCTURER_ONLINE_URL=${TEXT_STRUCTURER_ONLINE_URL}
+      - TEXT_STRUCTURER_OFFLINE_URL=${TEXT_STRUCTURER_OFFLINE_URL}
+      - MT_BACKEND_URL=${MT_BACKEND_URL}
+      - SUM_BACKEND_URL=${SUM_BACKEND_URL}
     command: python -u StreamTextStructurer.py --queue-server kafka --queue-port 9092 --redis-server redis --partitions 10
     networks:
       - LTPipeline
@@ -22,6 +26,8 @@ services:
       context: ${COMPONENTS_DIR}/streamingsummarizer
     environment:
       - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+      - SUM_BACKEND_URL=${SUM_BACKEND_URL}
+      - MT_BACKEND_URL=${MT_BACKEND_URL}
     command: python -u StreamSummarizer.py --queue-server kafka --queue-port 9092 --redis-server redis
     networks:
       - LTPipeline
@@ -36,6 +42,8 @@ services:
       context: ${COMPONENTS_DIR}/streamingpostproduction
     environment:
       - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+      - SUM_BACKEND_URL=${SUM_BACKEND_URL}
+      - MT_BACKEND_URL=${MT_BACKEND_URL}
     command: python -u StreamPostProduction.py --queue-server kafka --queue-port 9092 --redis-server redis
     networks:
       - LTPipeline

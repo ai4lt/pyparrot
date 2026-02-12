@@ -13,6 +13,7 @@ services:
       - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
       - DEBUG=True
       - HF_TOKEN=${HF_TOKEN:-}
+      - LLM_BACKEND_URL=${LLM_BACKEND_URL}
     restart: on-failure
     depends_on:
       - qbmediator

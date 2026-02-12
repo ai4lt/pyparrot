@@ -7,6 +7,12 @@ The PyParrot CLI now supports external backend integration with a complete workf
 2. Backend URLs stored in `.env` file
 3. Automatic registration during `pyparrot start` command
 
+**Supported Backend Types:**
+- **STT (Speech-to-Text)**: Automatic registration as ASR component
+- **MT (Machine Translation)**: Automatic registration as MT component  
+- **TTS (Text-to-Speech)**: Automatic registration as TTS component
+- **Summarizer**: Available via environment variable (no registration needed)
+
 ## Command Flow
 
 ### 1. Configure Pipeline with External Backends
@@ -44,6 +50,18 @@ pyparrot configure my-pipeline \
   --port 8001
 ```
 
+Or for any pipeline with external summarizer backend:
+
+```bash
+pyparrot configure my-pipeline \
+  --type end2end \
+  --backends external \
+  --stt-backend-url http://my-stt-server.com:5000 \
+  --summarizer-backend-url http://my-summarizer.com:3123 \
+  --domain example.com \
+  --port 8001
+```
+
 ### 2. Generated .env File
 
 The `.env` file in the config directory will contain:
@@ -62,6 +80,7 @@ BACKENDS=external
 STT_BACKEND_URL=http://my-stt-server.com:5000
 MT_BACKEND_URL=http://my-mt-server.com:5000
 TTS_BACKEND_URL=http://my-tts-server.com:5000
+SUM_BACKEND_URL=http://my-summarizer.com:3123
 ```
 
 ### 3. Start Pipeline with Automatic Backend Registration

@@ -175,6 +175,8 @@ class TemplateManager:
     def generate_compose_file(self, pipeline_type: str, domain: str = None, backends_mode: str = "local", 
                              stt_backend_engine: str = "faster-whisper", stt_backend_gpu: str = None,
                              mt_backend_engine: str = None, mt_backend_gpu: str = None,
+                             tts_backend_engine: str = None, tts_backend_gpu: str = None,
+                             llm_backend_engine: str = None, llm_backend_gpu: str = None,
                              repo_root: str = None, enable_https: bool = False, debug: bool = False,
                              acme_staging: bool = False) -> Dict[str, Any]:
         """Generate docker-compose configuration for a pipeline type.
@@ -187,6 +189,10 @@ class TemplateManager:
             stt_backend_gpu: GPU device ID for local/distributed backends
             mt_backend_engine: MT backend engine (e.g., vllm)
             mt_backend_gpu: GPU device ID for MT backend
+            tts_backend_engine: TTS backend engine (e.g., tts-kokoro)
+            tts_backend_gpu: GPU device ID for TTS backend
+            llm_backend_engine: LLM backend engine (e.g., huggingface-tgi)
+            llm_backend_gpu: GPU device ID for LLM backend
             repo_root: Repository root path for locating backend services
             enable_https: Enable HTTPS support
             debug: Debug mode enabled
@@ -216,6 +222,26 @@ class TemplateManager:
                     logger.warning(f"Failed to load MT backend: {mt_backend_engine}")
             else:
                 logger.info("No MT backend engine specified")
+
+            if tts_backend_engine:
+                logger.info(f"Loading TTS backend: {tts_backend_engine}")
+                tts_compose = self._load_backend_compose(tts_backend_engine, tts_backend_gpu, repo_root, backend_type="tts")
+                if tts_compose:
+                    self._merge_services(composed, tts_compose)
+                else:
+                    logger.warning(f"Failed to load TTS backend: {tts_backend_engine}")
+            else:
+                logger.info("No TTS backend engine specified")
+
+            if llm_backend_engine:
+                logger.info(f"Loading LLM backend: {llm_backend_engine}")
+                llm_compose = self._load_backend_compose(llm_backend_engine, llm_backend_gpu, repo_root, backend_type="llm")
+                if llm_compose:
+                    self._merge_services(composed, llm_compose)
+                else:
+                    logger.warning(f"Failed to load LLM backend: {llm_backend_engine}")
+            else:
+                logger.info("No LLM backend engine specified")
         
         return composed
 
@@ -226,7 +252,7 @@ class TemplateManager:
             backend_engine: Backend engine name (e.g., faster-whisper, vllm)
             gpu_device: GPU device ID (e.g., '0', '1', or None for CPU)
             repo_root: Repository root path
-            backend_type: Type of backend ("stt" or "mt")
+            backend_type: Type of backend ("stt", "mt", "tts", or "llm")
             
         Returns:
             Backend docker-compose configuration or None if not found
@@ -234,7 +260,9 @@ class TemplateManager:
         # Map backend engines to their directory names
         backend_dirs = {
             "faster-whisper": "faster-whisper",
-            "vllm": "vllmserver"
+            "vllm": "vllmserver",
+            "tts-kokoro": "tts-kokoro",
+            "huggingface-tgi": "huggingface-tgi",
         }
         
         if backend_engine not in backend_dirs:
@@ -245,10 +273,14 @@ class TemplateManager:
         
         # Try to find the backend docker-compose
         if repo_root:
-            backend_path = Path(repo_root) / "backends" / backend_dir_name / "docker-compose.yaml"
+            backend_dir = Path(repo_root) / "backends" / backend_dir_name
         else:
             # Fallback: calculate from template_dir
-            backend_path = self.template_dir.parent.parent / "backends" / backend_dir_name / "docker-compose.yaml"
+            backend_dir = self.template_dir.parent.parent / "backends" / backend_dir_name
+
+        backend_path = backend_dir / "docker-compose.yaml"
+        if not backend_path.exists():
+            backend_path = backend_dir / "docker-compose.yml"
         
         if not backend_path.exists():
             logger.warning(f"Backend compose file not found: {backend_path}")
@@ -518,7 +550,11 @@ class TemplateManager:
                          repo_root: str = None,
                          backends: str = "local", stt_backend_url: str = None,
                          mt_backend_url: str = None, tts_backend_url: str = None,
-                         stt_backend_engine: str = None,
+                         summarizer_backend_url: str = None,
+                         text_structurer_online_url: str = None, text_structurer_offline_url: str = None,
+                         llm_backend_url: str = None,
+                         stt_backend_engine: str = None, tts_backend_engine: str = None,
+                         llm_backend_engine: str = None, llm_backend_model: str = None,
                          stt_backend_model: str = None, mt_backend_engine: str = None,
                          mt_backend_model: str = None, enable_https: bool = False,
                          https_port: int = 443, acme_email: str = None,
@@ -538,10 +574,17 @@ class TemplateManager:
             stt_backend_url: External STT backend URL
             mt_backend_url: External MT backend URL
             tts_backend_url: External TTS backend URL
+            tts_backend_engine: TTS backend engine (e.g., tts-kokoro)
+            summarizer_backend_url: External Summarizer backend URL
+            text_structurer_online_url: External Text Structurer online model URL
+            text_structurer_offline_url: External Text Structurer offline model URL
+            llm_backend_url: External LLM backend URL
             stt_backend_engine: STT backend engine (e.g., faster-whisper)
             stt_backend_model: STT backend model name (e.g., Qwen2.5-Omni-7B)
             mt_backend_engine: MT backend engine (e.g., vllm)
             mt_backend_model: MT backend model name (e.g., Qwen/Qwen2.5-7B-Instruct)
+            llm_backend_engine: LLM backend engine (e.g., huggingface-tgi)
+            llm_backend_model: LLM backend model ID (e.g., google/gemma-3-12b-it)
             enable_https: Enable HTTPS support
             https_port: HTTPS port number
             acme_email: Email for Let's Encrypt
@@ -627,6 +670,28 @@ class TemplateManager:
             elif backends in ["local", "distributed"] and mt_backend_engine == "vllm":
                 f.write(f"MT_BACKEND_URL=http://vllm-mt:8001/mt/\n")
 
-            if tts_backend_url:
+            if backends == "external" and tts_backend_url:
                 f.write(f"TTS_BACKEND_URL={tts_backend_url}\n")
+            elif backends in ["local", "distributed"] and tts_backend_engine == "tts-kokoro":
+                f.write("TTS_BACKEND_URL=http://tts-kokoro:5058/tts\n")
+
+            if summarizer_backend_url:
+                f.write(f"SUM_BACKEND_URL={summarizer_backend_url}\n")
+
+            if text_structurer_online_url:
+                f.write(f"TEXT_STRUCTURER_ONLINE_URL={text_structurer_online_url}\n")
+
+            if text_structurer_offline_url:
+                f.write(f"TEXT_STRUCTURER_OFFLINE_URL={text_structurer_offline_url}\n")
+
+            if llm_backend_url:
+                f.write(f"LLM_BACKEND_URL={llm_backend_url}\n")
+            elif backends in ["local", "distributed"] and llm_backend_engine == "huggingface-tgi":
+                f.write("LLM_BACKEND_URL=http://llm:80\n")
+
+            if llm_backend_engine == "huggingface-tgi":
+                if llm_backend_model:
+                    f.write(f"MODEL_ID={llm_backend_model}\n")
+                if hf_token:
+                    f.write(f"HUGGING_FACE_HUB_TOKEN={hf_token}\n")
 
