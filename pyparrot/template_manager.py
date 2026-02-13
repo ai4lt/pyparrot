@@ -561,6 +561,7 @@ class TemplateManager:
                          https_port: int = 443, acme_email: str = None,
                          acme_staging: bool = False, force_https_redirect: bool = False,
                          slide_support: bool = False,
+                         pipeline_type: str = None,
                          debug: bool = False) -> None:
         """Generate .env file for docker-compose with environment variables.
         
@@ -640,8 +641,8 @@ class TemplateManager:
             f.write(f"BACKENDS={backends}\n")
             f.write(f"DEBUG_MODE={'true' if debug else 'false'}\n")
             f.write(f"SLIDE_SUPPORT={'true' if slide_support else 'false'}\n")
-            
-            # HTTPS configuration
+            if pipeline_type:
+                f.write(f"PIPELINE_TYPE={pipeline_type}\n")
             f.write(f"ENABLE_HTTPS={'true' if enable_https else 'false'}\n")
             f.write(f"HTTPS_PORT={https_port}\n")
             f.write(f"FORCE_HTTPS_REDIRECT={'true' if force_https_redirect else 'false'}\n")
@@ -658,14 +659,18 @@ class TemplateManager:
             if mt_backend_model:
                 f.write(f"MT_BACKEND_MODEL={mt_backend_model}\n")
             
-            # Write STT_BACKEND_URL based on backend mode and engine
+            # Write STT_BACKEND_URL based on backend mode, engine, and pipeline type
+            use_slt = pipeline_type in ["end2end", "BOOM-light", "BOOM"]
+            
             if backends == "external" and stt_backend_url:
-                # External backends use provided URL
+                # External backends use provided URL as-is
                 f.write(f"STT_BACKEND_URL={stt_backend_url}\n")
             elif backends in ["local", "distributed"]:
                 # Local/distributed backends use internal Docker network address
                 if stt_backend_engine == "faster-whisper":
-                    f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/asr\n")
+                    # Use /slt endpoint for end2end, BOOM-light, BOOM; /asr for others
+                    endpoint = "slt" if use_slt else "asr"
+                    f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/{endpoint}\n")
                 elif stt_backend_engine == "vllm":
                     f.write(f"STT_BACKEND_URL=http://vllm:8001/asr\n")
             

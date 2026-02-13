@@ -388,6 +388,7 @@ def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_
                 acme_staging=acme_staging,
                 force_https_redirect=force_https_redirect,
                 slide_support=slide_support,
+                pipeline_type=type,
                 debug=debug
             )
             logger.info(f"Generated .env file for docker-compose")
@@ -690,6 +691,7 @@ def start(config_name, component):
                 from dotenv import dotenv_values
                 env_vars = dotenv_values(env_file)
                 backends_mode = env_vars.get("BACKENDS", "local")
+                pipeline_type = env_vars.get("PIPELINE_TYPE", "end2end")
                 stt_url = env_vars.get("STT_BACKEND_URL")
                 mt_url = env_vars.get("MT_BACKEND_URL")
                 tts_url = env_vars.get("TTS_BACKEND_URL")
@@ -698,22 +700,33 @@ def start(config_name, component):
                 stt_name = env_vars.get("STT_BACKEND_NAME", "mult57")
                 mt_name = env_vars.get("MT_BACKEND_NAME", "mt")
                 
+                # Determine if we should register STT as SLT (speech-to-language translation) or ASR (speech-to-text)
+                # Use SLT for: end2end, BOOM-light, BOOM pipeline types
+                use_slt = pipeline_type in ["end2end", "BOOM-light", "BOOM"]
+                stt_component = "slt" if use_slt else "asr"
+                
                 if stt_url or mt_url or tts_url:
                     click.echo(f"Registering backends ({backends_mode} mode)...")
                     
                     # Register STT backend
                     if stt_url:
+                        # For local backends, adjust the URL from whisper/asr to whisper/slt if needed
+                        final_stt_url = stt_url
+                        if use_slt and backends_mode == "local" and "whisper" in stt_url and "/asr" in stt_url:
+                            final_stt_url = stt_url.replace("/asr", "/slt")
+                        
                         stt_cmd = docker_cmd + [
                             "-f", str(config_subdir / "docker-compose.yaml"),
                             "exec", "-T", "ltapi", "curl", "-s",
                             "-H", "Content-Type: application/json",
                             "http://ltapi:5000/ltapi/register_worker",
-                            "-d", f'{{"component": "asr", "name": "{stt_name}", "server": "{stt_url}"}}'
+                            "-d", f'{{"component": "{stt_component}", "name": "{stt_name}", "server": "{final_stt_url}"}}'
                         ]
                         stt_result = subprocess.run(stt_cmd, capture_output=True, text=True)
                         click.echo(f"STT registration response: {stt_result.stdout} (exit: {stt_result.returncode})")
                         if stt_result.returncode == 0:
-                            click.echo(click.style(f"✓ STT backend registered: {stt_url}", fg="green"))
+                            component_label = "SLT" if use_slt else "STT"
+                            click.echo(click.style(f"✓ {component_label} backend registered: {final_stt_url}", fg="green"))
                         else:
                             click.echo(click.style(f"⚠ Warning: Could not register STT backend: {stt_result.stderr}", fg="yellow"))
                     
