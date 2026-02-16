@@ -1,25 +1,54 @@
-name: example-pipeline
-version: "1.0"
-description: Example speech-to-LLM pipeline
+# PyParrot Configuration File Example
+# Usage: pyparrot configure my-pipeline --config config.yaml
+# Note: CLI options override values in this file
 
-components:
-  speech:
-    model: whisper
-    sample_rate: 16000
-    language: en
-    device: cpu
+# Pipeline Configuration
+type: cascaded  # Options: end2end, cascaded, LT.2025, dialog, BOOM-light, BOOM
+backends: local  # Options: local, distributed, external
 
-  llm:
-    model: gpt-3.5-turbo
-    temperature: 0.7
-    max_tokens: 256
+# Backend URLs (when backends=external)
+# stt_backend_url: http://external-whisper:8080/asr
+# mt_backend_url: http://external-mt:8080/translate
+# tts_backend_url: http://external-tts:8080/synthesize
+# summarizer_backend_url: http://external-summarizer:8080
+# text_structurer_online_url: http://external-structurer:8080/online
+# text_structurer_offline_url: http://external-structurer:8080/offline
+# llm_backend_url: http://external-llm:8080
 
-docker:
-  image_name: pyparrot-example
-  base_image: python:3.11-slim
-  port: 8000
-  volumes:
-    /data: /app/data
-  environment:
-    LOG_LEVEL: INFO
-    DEBUG: "false"
+# Backend Configuration (when backends=local or distributed)
+stt_backend_engine: faster-whisper  # Options: faster-whisper, vllm
+stt_backend_model: large-v2  # Options: large-v2, Qwen/Qwen2.5-7B-Instruct
+# stt_backend_gpu: "0"
+
+mt_backend_engine: vllm  # Options: vllm
+mt_backend_model: Qwen/Qwen2.5-7B-Instruct
+# mt_backend_gpu: "1"
+
+# tts_backend_engine: tts-kokoro
+# tts_backend_gpu: "2"
+
+# llm_backend_engine: huggingface-tgi
+# llm_backend_model: google/gemma-3-12b-it
+# llm_backend_gpu: "3"
+
+# Network Configuration
+domain: pyparrot.localhost
+port: 8001
+# external_port: 80
+# external_https_port: 443
+
+# HTTPS Configuration
+enable_https: false
+https_port: 443
+# acme_email: admin@example.com  # Required for non-localhost domains with HTTPS
+# acme_staging: false  # Use Let's Encrypt staging server (for testing)
+# force_https_redirect: false
+
+# Frontend Configuration
+website_theme: defaulttheme
+
+# Tokens
+# hf_token: hf_your_token_here
+
+# Development
+debug: false  # Mount ltfrontend code for live development

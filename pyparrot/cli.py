@@ -93,6 +93,11 @@ def main():
 @main.command()
 @click.argument("config_name")
 @click.option(
+    "--config",
+    type=click.Path(exists=True),
+    help="Path to YAML configuration file (CLI options override file values)",
+)
+@click.option(
     "--type",
     type=click.Choice(["end2end", "cascaded", "LT.2025", "dialog", "BOOM-light","BOOM"]),
     default="end2end",
@@ -134,9 +139,67 @@ def main():
 @click.option("--acme-staging", is_flag=True, help="Use Let's Encrypt staging server (for testing, avoids rate limits)")
 @click.option("--force-https-redirect", is_flag=True, help="Redirect all HTTP traffic to HTTPS")
 @click.option("--debug", is_flag=True, help="Enable debug mode: mount ltfrontend code for live development")
-def configure(config_name, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, llm_backend_engine, llm_backend_model, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
+def configure(config_name, config, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, llm_backend_engine, llm_backend_model, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
     """Configure a new pipeline and create its configuration directory."""
     try:
+        # Load YAML configuration if provided
+        yaml_config = {}
+        if config:
+            logger.info(f"Loading configuration from {config}")
+            with open(config, 'r') as f:
+                yaml_config = yaml.safe_load(f) or {}
+            click.echo(click.style(f"Loaded configuration from {config}", fg="cyan"))
+        
+        # Merge CLI arguments with YAML config (CLI takes precedence)
+        # For each parameter, use CLI value if explicitly provided, otherwise fall back to YAML
+        # Note: Click sets defaults even when not explicitly provided, so we need to check the context
+        ctx = click.get_current_context()
+        
+        # Helper to get value: CLI if explicitly provided, else YAML, else current value
+        def get_value(param_name, current_value, yaml_key=None):
+            yaml_key = yaml_key or param_name
+            # Check if this parameter was explicitly provided on CLI
+            if param_name in ctx.params and ctx.get_parameter_source(param_name).name != 'DEFAULT':
+                return current_value
+            # Fall back to YAML config
+            return yaml_config.get(yaml_key, current_value)
+        
+        # Apply YAML values where CLI didn't explicitly provide them
+        type = get_value('type', type)
+        backends = get_value('backends', backends)
+        stt_backend_url = get_value('stt_backend_url', stt_backend_url)
+        mt_backend_url = get_value('mt_backend_url', mt_backend_url)
+        tts_backend_url = get_value('tts_backend_url', tts_backend_url)
+        summarizer_backend_url = get_value('summarizer_backend_url', summarizer_backend_url)
+        text_structurer_online_url = get_value('text_structurer_online_url', text_structurer_online_url)
+        text_structurer_offline_url = get_value('text_structurer_offline_url', text_structurer_offline_url)
+        llm_backend_url = get_value('llm_backend_url', llm_backend_url)
+        stt_backend_engine = get_value('stt_backend_engine', stt_backend_engine)
+        stt_backend_model = get_value('stt_backend_model', stt_backend_model)
+        stt_backend_gpu = get_value('stt_backend_gpu', stt_backend_gpu)
+        mt_backend_engine = get_value('mt_backend_engine', mt_backend_engine)
+        mt_backend_model = get_value('mt_backend_model', mt_backend_model)
+        mt_backend_gpu = get_value('mt_backend_gpu', mt_backend_gpu)
+        tts_backend_engine = get_value('tts_backend_engine', tts_backend_engine)
+        tts_backend_gpu = get_value('tts_backend_gpu', tts_backend_gpu)
+        llm_backend_engine = get_value('llm_backend_engine', llm_backend_engine)
+        llm_backend_model = get_value('llm_backend_model', llm_backend_model)
+        llm_backend_gpu = get_value('llm_backend_gpu', llm_backend_gpu)
+        port = get_value('port', port)
+        external_port = get_value('external_port', external_port)
+        external_https_port = get_value('external_https_port', external_https_port)
+        domain = get_value('domain', domain)
+        website_theme = get_value('website_theme', website_theme)
+        hf_token = get_value('hf_token', hf_token)
+        enable_https = get_value('enable_https', enable_https)
+        https_port = get_value('https_port', https_port)
+        acme_email = get_value('acme_email', acme_email)
+        acme_staging = get_value('acme_staging', acme_staging)
+        force_https_redirect = get_value('force_https_redirect', force_https_redirect)
+        debug = get_value('debug', debug)
+        
+        if config:
+            click.echo(click.style("✓ Configuration merged (CLI arguments override file values)", fg="green"))
         backend_defaults = {
             "end2end": ["stt"],
             "cascaded": ["stt", "mt"],
@@ -649,19 +712,23 @@ def start(config_name, component):
         if result.returncode == 0:
             click.echo(click.style("✓ Successfully started Docker containers", fg="green"))
             
-            # Wait for services to be ready (especially ltapi and redis)
-            # For local backends, wait longer as they need to start up too
-            env_file = config_subdir / ".env"
-            wait_time = 3  # Default wait time
-            if env_file.exists():
-                from dotenv import dotenv_values
-                env_vars = dotenv_values(env_file)
-                backends_mode = env_vars.get("BACKENDS", "local")
-                if backends_mode == "local":
-                    wait_time = 10
+            # Wait for ltapi to be ready
+            click.echo("Waiting for ltapi service to be ready...")
+            ltapi_ready = False
+            for i in range(30):  # 30 seconds timeout
+                ltapi_check = docker_cmd + [
+                    "-f", str(config_subdir / "docker-compose.yaml"),
+                    "exec", "-T", "ltapi", "curl", "-s", "-f", "http://ltapi:5000/ltapi/list_available_languages"
+                ]
+                result = subprocess.run(ltapi_check, capture_output=True, text=True)
+                if result.returncode == 0:
+                    ltapi_ready = True
+                    click.echo(click.style("✓ ltapi service is ready", fg="green"))
+                    break
+                time.sleep(1)
             
-            click.echo(f"Waiting for services to be ready ({wait_time}s)...")
-            time.sleep(wait_time)
+            if not ltapi_ready:
+                click.echo(click.style("⚠ Warning: ltapi service did not become ready in time", fg="yellow"))
             
             # Initialize Redis admin group
             click.echo("Initializing Redis groups...")
@@ -706,61 +773,110 @@ def start(config_name, component):
                 stt_component = "slt" if use_slt else "asr"
                 
                 if stt_url or mt_url or tts_url:
-                    click.echo(f"Registering backends ({backends_mode} mode)...")
+                    click.echo(f"Waiting for backends to be available ({backends_mode} mode)...")
+                    
+                    # Helper function to check if a backend is available via available_languages
+                    def wait_for_backend(component_type, backend_url, timeout=120):
+                        """Wait for backend to report available languages. Returns True if available, False on timeout."""
+                        start_time = time.time()
+                        check_url = backend_url.rstrip("/")
+                        
+                        # Determine the available_languages endpoint for this backend
+                        if component_type == "mt":
+                            check_endpoint = "/models/mt/available_languages"
+                        else:
+                            check_endpoint = "/available_languages"
+                        
+                        while time.time() - start_time < timeout:
+                            try:
+                                # Check from inside ltapi container to access internal URLs
+                                check_cmd = docker_cmd + [
+                                    "-f", str(config_subdir / "docker-compose.yaml"),
+                                    "exec", "-T", "ltapi", "curl", "-s", "-f", "--max-time", "5",
+                                    f"{check_url}{check_endpoint}"
+                                ]
+                                result = subprocess.run(check_cmd, capture_output=True, text=True)
+                                if result.returncode == 0:
+                                    # Try to parse response as JSON to verify it's valid
+                                    try:
+                                        import json
+                                        data = json.loads(result.stdout)
+                                        if data:  # Non-empty response
+                                            return True
+                                    except:
+                                        pass
+                            except:
+                                pass
+                            time.sleep(2)
+                        return False
                     
                     # Register STT backend
                     if stt_url:
                         # For local backends, adjust the URL from whisper/asr to whisper/slt if needed
                         final_stt_url = stt_url
+                        check_url = stt_url
                         if use_slt and backends_mode == "local" and "whisper" in stt_url and "/asr" in stt_url:
                             final_stt_url = stt_url.replace("/asr", "/slt")
+                            check_url = stt_url.replace("/asr", "/slt")
                         
-                        stt_cmd = docker_cmd + [
-                            "-f", str(config_subdir / "docker-compose.yaml"),
-                            "exec", "-T", "ltapi", "curl", "-s",
-                            "-H", "Content-Type: application/json",
-                            "http://ltapi:5000/ltapi/register_worker",
-                            "-d", f'{{"component": "{stt_component}", "name": "{stt_name}", "server": "{final_stt_url}"}}'
-                        ]
-                        stt_result = subprocess.run(stt_cmd, capture_output=True, text=True)
-                        click.echo(f"STT registration response: {stt_result.stdout} (exit: {stt_result.returncode})")
-                        if stt_result.returncode == 0:
-                            component_label = "SLT" if use_slt else "STT"
-                            click.echo(click.style(f"✓ {component_label} backend registered: {final_stt_url}", fg="green"))
+                        component_label = "SLT" if use_slt else "STT"
+                        click.echo(f"Waiting for {component_label} backend at {check_url}...")
+                        if wait_for_backend(stt_component, check_url):
+                            stt_cmd = docker_cmd + [
+                                "-f", str(config_subdir / "docker-compose.yaml"),
+                                "exec", "-T", "ltapi", "curl", "-s",
+                                "-H", "Content-Type: application/json",
+                                "http://ltapi:5000/ltapi/register_worker",
+                                "-d", f'{{"component": "{stt_component}", "name": "{stt_name}", "server": "{final_stt_url}"}}'
+                            ]
+                            stt_result = subprocess.run(stt_cmd, capture_output=True, text=True)
+                            if stt_result.returncode == 0:
+                                click.echo(click.style(f"✓ {component_label} backend registered: {final_stt_url}", fg="green"))
+                            else:
+                                click.echo(click.style(f"⚠ Warning: Could not register {component_label} backend: {stt_result.stderr}", fg="yellow"))
                         else:
-                            click.echo(click.style(f"⚠ Warning: Could not register STT backend: {stt_result.stderr}", fg="yellow"))
+                            click.echo(click.style(f"✗ Error: {component_label} backend at {check_url} did not become available within 2 minutes", fg="red"), err=True)
+                            sys.exit(1)
                     
                     # Register MT backend
                     if mt_url:
-                        mt_cmd = docker_cmd + [
-                            "-f", str(config_subdir / "docker-compose.yaml"),
-                            "exec", "-T", "ltapi", "curl", "-s",
-                            "-H", "Content-Type: application/json",
-                            "http://ltapi:5000/ltapi/register_worker",
-                            "-d", f'{{"component": "mt", "name": "{mt_name}", "server": "{mt_url}"}}'
-                        ]
-                        mt_result = subprocess.run(mt_cmd, capture_output=True, text=True)
-                        click.echo(f"MT registration response: {mt_result.stdout} (exit: {mt_result.returncode})")
-                        if mt_result.returncode == 0:
-                            click.echo(click.style(f"✓ MT backend registered: {mt_url}", fg="green"))
+                        click.echo(f"Waiting for MT backend at {mt_url}...")
+                        if wait_for_backend("mt", mt_url):
+                            mt_cmd = docker_cmd + [
+                                "-f", str(config_subdir / "docker-compose.yaml"),
+                                "exec", "-T", "ltapi", "curl", "-s",
+                                "-H", "Content-Type: application/json",
+                                "http://ltapi:5000/ltapi/register_worker",
+                                "-d", f'{{"component": "mt", "name": "{mt_name}", "server": "{mt_url}"}}'
+                            ]
+                            mt_result = subprocess.run(mt_cmd, capture_output=True, text=True)
+                            if mt_result.returncode == 0:
+                                click.echo(click.style(f"✓ MT backend registered: {mt_url}", fg="green"))
+                            else:
+                                click.echo(click.style(f"⚠ Warning: Could not register MT backend: {mt_result.stderr}", fg="yellow"))
                         else:
-                            click.echo(click.style(f"⚠ Warning: Could not register MT backend: {mt_result.stderr}", fg="yellow"))
+                            click.echo(click.style(f"✗ Error: MT backend at {mt_url} did not become available within 2 minutes", fg="red"), err=True)
+                            sys.exit(1)
 
                     # Register TTS backend
                     if tts_url:
-                        tts_cmd = docker_cmd + [
-                            "-f", str(config_subdir / "docker-compose.yaml"),
-                            "exec", "-T", "ltapi", "curl", "-s",
-                            "-H", "Content-Type: application/json",
-                            "http://ltapi:5000/ltapi/register_worker",
-                            "-d", f'{{"component": "tts", "name": "tts", "server": "{tts_url}"}}'
-                        ]
-                        tts_result = subprocess.run(tts_cmd, capture_output=True, text=True)
-                        click.echo(f"TTS registration response: {tts_result.stdout} (exit: {tts_result.returncode})")
-                        if tts_result.returncode == 0:
-                            click.echo(click.style(f"✓ TTS backend registered: {tts_url}", fg="green"))
+                        click.echo(f"Waiting for TTS backend at {tts_url}...")
+                        if wait_for_backend("tts", tts_url):
+                            tts_cmd = docker_cmd + [
+                                "-f", str(config_subdir / "docker-compose.yaml"),
+                                "exec", "-T", "ltapi", "curl", "-s",
+                                "-H", "Content-Type: application/json",
+                                "http://ltapi:5000/ltapi/register_worker",
+                                "-d", f'{{"component": "tts", "name": "tts", "server": "{tts_url}"}}'
+                            ]
+                            tts_result = subprocess.run(tts_cmd, capture_output=True, text=True)
+                            if tts_result.returncode == 0:
+                                click.echo(click.style(f"✓ TTS backend registered: {tts_url}", fg="green"))
+                            else:
+                                click.echo(click.style(f"⚠ Warning: Could not register TTS backend: {tts_result.stderr}", fg="yellow"))
                         else:
-                            click.echo(click.style(f"⚠ Warning: Could not register TTS backend: {tts_result.stderr}", fg="yellow"))
+                            click.echo(click.style(f"✗ Error: TTS backend at {tts_url} did not become available within 2 minutes", fg="red"), err=True)
+                            sys.exit(1)
         else:
             click.echo(click.style(f"✗ Start failed with exit code {result.returncode}", fg="red"), err=True)
             sys.exit(result.returncode)
