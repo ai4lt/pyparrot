@@ -1,0 +1,22 @@
+# PyParrot E2E Local Configuration
+# Usage: pyparrot configure e2e-local --config examples/e2e-local.yaml
+# Equivalent to: pyparrot configure e2e-local --type end2end --backends local --port 8002 --stt-backend-engine faster-whisper --stt-backend-model large-v2 --stt-backend-gpu 1
+
+# Pipeline Configuration
+type: end2end
+backends: local
+
+# Backend Configuration (local mode)
+stt_backend_engine: faster-whisper
+stt_backend_model: large-v2
+stt_backend_gpu: "1"
+
+# Network Configuration
+domain: pyparrot.localhost
+port: 8002
+
+# Frontend Configuration
+website_theme: defaulttheme
+
+# Development
+debug: false
