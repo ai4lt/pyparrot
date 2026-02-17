@@ -31,7 +31,7 @@ cd pyparrot
 
 # Initialize and update submodules
 git submodule sync --recursive
-git submodule update --init --recursive
+git submodule update --init --recursive --force
 ```
 
 ### Install PyParrot
