@@ -55,8 +55,8 @@ class TemplateManager:
         "cascaded": ["middleware", "asr", "mt"],
         "LT.2025": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
         "dialog": ["middleware", "asr", "tts", "dialog"],
-        "BOOM-light": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
-        "BOOM": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
+        "BOOM-light": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
+        "BOOM": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
     }
 
     def __init__(self):

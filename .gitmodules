@@ -55,3 +55,6 @@
 [submodule "backends/huggingface-tgi"]
 	path = backends/huggingface-tgi
 	url = git@gitlab.kit.edu:kit/isl-ai4lt/lt-middleware/inference/llm-gemma.git
+[submodule "components/streamingslide"]
+	path = components/streamingslide
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/streamingslide.git

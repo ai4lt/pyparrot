@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  streamingslide:
+    image: registry.isl.iar.kit.edu/streamingslide
+    build: ${COMPONENTS_DIR}/streamingslide
+    depends_on:
+      - qbmediator
+    environment:
+      - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
+    command: python -u StreamSlide.py --queue-server kafka --queue-port 9092 --redis-server redis
+    networks:
+      - LTPipeline
+    restart: on-failure
+
+networks:
+  LTPipeline: {}
