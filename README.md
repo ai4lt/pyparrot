@@ -30,6 +30,7 @@ git clone https://github.com/ai4lt/pyparrot.git
 cd pyparrot
 
 # Initialize and update submodules
+git submodule sync --recursive
 git submodule update --init --recursive
 ```
 
