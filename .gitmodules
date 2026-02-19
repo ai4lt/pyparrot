@@ -61,3 +61,6 @@
 [submodule "backends/omnifusion_pyparrot"]
 	path = backends/omnifusion_pyparrot
 	url = https://github.com/saikoneru/omnifusion_pyparrot
+[submodule "backends/image-translator"]
+	path = backends/image-translator
+	url = https://github.com/saikoneru/image-translator
