@@ -705,8 +705,8 @@ class TemplateManager:
                         f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/{endpoint}\n")
                     elif stt_backend_engine == "vllm":
                         f.write("STT_BACKEND_URL=http://vllm:8001/asr\n")
-                elif stt_backend_engine == "omnifusion":
-                    f.write(f"STT_BACKEND_URL=http://vllm:8001/slt\n")
+                    elif stt_backend_engine == "omnifusion":
+                        f.write(f"STT_BACKEND_URL=http://vllm:8001/slt\n")
 
             if should_write_mt:
                 if mt_backend_url:

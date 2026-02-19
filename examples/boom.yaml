@@ -7,8 +7,8 @@ type: BOOM
 backends: local
 
 # Backend Configuration (local mode)
-stt_backend_engine: faster-whisper
-stt_backend_model: large-v2
+stt_backend_engine: omnifusion
+stt_backend_model: OmniFusion_v2
 stt_backend_gpu: "1"
 tts_backend_gpu: "1"
 llm-backend-gpu: "1"

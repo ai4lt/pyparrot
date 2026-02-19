@@ -354,7 +354,7 @@ services:
 {% if environment.ENABLE_HTTPS == 'true' %}
       DOMAIN: 'https://${EXTERNAL_HTTPS_DOMAIN_PORT}'
 {% else %}
-      DOMAIN: 'http://${environment.EXTERNAL_DOMAIN_PORT}'
+      DOMAIN: 'http://${EXTERNAL_DOMAIN_PORT}'
 {% endif %}
       SLIDE_SUPPORT: '${SLIDE_SUPPORT:-false}'
       {% if 'DEBUG_MODE' in environment and environment.DEBUG_MODE == 'true' %}
@@ -364,6 +364,10 @@ services:
     volumes:
       - ${COMPONENTS_DIR}/ltfrontend/ltweb:/src/ltweb
     {% endif %}
+{% if IS_LOCALHOST_DOMAIN %}
+    extra_hosts:
+      - "${DOMAIN}:host-gateway"
+{% endif %}
     labels:
       - 'pipeline=${PIPELINE_NAME:-main}'
       - 'traefik.enable=true'
