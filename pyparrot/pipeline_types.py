@@ -7,6 +7,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "end2end": {
         "templates": ["middleware", "asr"],
         "backend_components": ["stt"],
+        "used_urls": ["stt"],
         "use_slt": True,
         "slide_support": False,
         "default_mt_backend_engine": None,
@@ -15,6 +16,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "cascaded": {
         "templates": ["middleware", "asr", "mt"],
         "backend_components": ["stt", "mt"],
+        "used_urls": ["stt", "mt"],
         "use_slt": False,
         "slide_support": False,
         "default_mt_backend_engine": "vllm",
@@ -23,6 +25,15 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "LT.2025": {
         "templates": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
         "backend_components": ["stt", "mt", "tts"],
+        "used_urls": [
+            "stt",
+            "mt",
+            "tts",
+            "summarizer",
+            "text_structurer_online",
+            "text_structurer_offline",
+            "llm",
+        ],
         "use_slt": False,
         "slide_support": False,
         "default_mt_backend_engine": None,
@@ -31,6 +42,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "dialog": {
         "templates": ["middleware", "asr", "tts", "dialog"],
         "backend_components": ["stt", "tts"],
+        "used_urls": ["stt", "tts", "llm"],
         "use_slt": False,
         "slide_support": False,
         "default_mt_backend_engine": None,
@@ -39,6 +51,15 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "BOOM-light": {
         "templates": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
         "backend_components": ["stt", "tts"],
+        "used_urls": [
+            "stt",
+            "mt",
+            "tts",
+            "summarizer",
+            "text_structurer_online",
+            "text_structurer_offline",
+            "llm",
+        ],
         "use_slt": True,
         "slide_support": True,
         "default_mt_backend_engine": None,
@@ -47,6 +68,15 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "BOOM": {
         "templates": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
         "backend_components": ["stt", "tts"],
+        "used_urls": [
+            "stt",
+            "mt",
+            "tts",
+            "summarizer",
+            "text_structurer_online",
+            "text_structurer_offline",
+            "llm",
+        ],
         "use_slt": True,
         "slide_support": True,
         "default_mt_backend_engine": None,
@@ -69,6 +99,13 @@ def get_pipeline_templates(pipeline_type: str) -> List[str]:
 
 def get_backend_components(pipeline_type: str) -> List[str]:
     return list(PIPELINE_DEFINITIONS[pipeline_type]["backend_components"])
+
+
+def uses_url(pipeline_type: str, url_key: str) -> bool:
+    definition = PIPELINE_DEFINITIONS.get(pipeline_type)
+    if not definition:
+        return False
+    return url_key in definition["used_urls"]
 
 
 def uses_slt(pipeline_type: str) -> bool:

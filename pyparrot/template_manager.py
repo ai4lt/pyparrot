@@ -7,7 +7,7 @@ import yaml
 import logging
 import subprocess
 from jinja2 import Template
-from .pipeline_types import get_pipeline_templates, has_pipeline_type, uses_slt
+from .pipeline_types import get_pipeline_templates, has_pipeline_type, uses_slt, uses_url
 
 logger = logging.getLogger(__name__)
 
@@ -650,46 +650,58 @@ class TemplateManager:
             if mt_backend_model:
                 f.write(f"MT_BACKEND_MODEL={mt_backend_model}\n")
             
+            known_pipeline_type = pipeline_type and has_pipeline_type(pipeline_type)
+            should_write_stt = uses_url(pipeline_type, "stt") if known_pipeline_type else True
+            should_write_mt = uses_url(pipeline_type, "mt") if known_pipeline_type else True
+            should_write_tts = uses_url(pipeline_type, "tts") if known_pipeline_type else True
+            should_write_summarizer = uses_url(pipeline_type, "summarizer") if known_pipeline_type else True
+            should_write_text_structurer_online = uses_url(pipeline_type, "text_structurer_online") if known_pipeline_type else True
+            should_write_text_structurer_offline = uses_url(pipeline_type, "text_structurer_offline") if known_pipeline_type else True
+            should_write_llm = uses_url(pipeline_type, "llm") if known_pipeline_type else True
+
             # Write STT_BACKEND_URL based on backend mode, engine, and pipeline type
             use_slt = uses_slt(pipeline_type)
-            
-            if backends == "external" and stt_backend_url:
-                # External backends use provided URL as-is
-                f.write(f"STT_BACKEND_URL={stt_backend_url}\n")
-            elif backends in ["local", "distributed"]:
-                # Local/distributed backends use internal Docker network address
-                if stt_backend_engine == "faster-whisper":
-                    # Use /slt endpoint for pipeline types that require SLT; /asr for others
-                    endpoint = "slt" if use_slt else "asr"
-                    f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/{endpoint}\n")
-                elif stt_backend_engine == "vllm":
-                    f.write(f"STT_BACKEND_URL=http://vllm:8001/asr\n")
-            
-            if mt_backend_url:
-                f.write(f"MT_BACKEND_URL={mt_backend_url}\n")
-            elif backends in ["local", "distributed"] and mt_backend_engine == "vllm":
-                f.write(f"MT_BACKEND_URL=http://vllm-mt:8001/mt/\n")
+            if should_write_stt:
+                if backends == "external" and stt_backend_url:
+                    # External backends use provided URL as-is
+                    f.write(f"STT_BACKEND_URL={stt_backend_url}\n")
+                elif backends in ["local", "distributed"]:
+                    # Local/distributed backends use internal Docker network address
+                    if stt_backend_engine == "faster-whisper":
+                        # Use /slt endpoint for pipeline types that require SLT; /asr for others
+                        endpoint = "slt" if use_slt else "asr"
+                        f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/{endpoint}\n")
+                    elif stt_backend_engine == "vllm":
+                        f.write("STT_BACKEND_URL=http://vllm:8001/asr\n")
 
-            if backends == "external" and tts_backend_url:
-                f.write(f"TTS_BACKEND_URL={tts_backend_url}\n")
-            elif backends in ["local", "distributed"] and tts_backend_engine == "tts-kokoro":
-                f.write("TTS_BACKEND_URL=http://tts-kokoro:5058/tts\n")
+            if should_write_mt:
+                if mt_backend_url:
+                    f.write(f"MT_BACKEND_URL={mt_backend_url}\n")
+                elif backends in ["local", "distributed"] and mt_backend_engine == "vllm":
+                    f.write("MT_BACKEND_URL=http://vllm-mt:8001/mt/\n")
 
-            if summarizer_backend_url:
+            if should_write_tts:
+                if backends == "external" and tts_backend_url:
+                    f.write(f"TTS_BACKEND_URL={tts_backend_url}\n")
+                elif backends in ["local", "distributed"] and tts_backend_engine == "tts-kokoro":
+                    f.write("TTS_BACKEND_URL=http://tts-kokoro:5058/tts\n")
+
+            if should_write_summarizer and summarizer_backend_url:
                 f.write(f"SUM_BACKEND_URL={summarizer_backend_url}\n")
 
-            if text_structurer_online_url:
+            if should_write_text_structurer_online and text_structurer_online_url:
                 f.write(f"TEXT_STRUCTURER_ONLINE_URL={text_structurer_online_url}\n")
 
-            if text_structurer_offline_url:
+            if should_write_text_structurer_offline and text_structurer_offline_url:
                 f.write(f"TEXT_STRUCTURER_OFFLINE_URL={text_structurer_offline_url}\n")
 
-            if llm_backend_url:
-                f.write(f"LLM_BACKEND_URL={llm_backend_url}\n")
-            elif backends in ["local", "distributed"] and llm_backend_engine == "huggingface-tgi":
-                f.write("LLM_BACKEND_URL=http://llm:80\n")
+            if should_write_llm:
+                if llm_backend_url:
+                    f.write(f"LLM_BACKEND_URL={llm_backend_url}\n")
+                elif backends in ["local", "distributed"] and llm_backend_engine == "huggingface-tgi":
+                    f.write("LLM_BACKEND_URL=http://llm:80\n")
 
-            if llm_backend_engine == "huggingface-tgi":
+            if should_write_llm and llm_backend_engine == "huggingface-tgi":
                 if llm_backend_model:
                     f.write(f"MODEL_ID={llm_backend_model}\n")
                 if hf_token:

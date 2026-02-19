@@ -18,6 +18,7 @@ from .pipeline_types import (
     default_tts_backend_engine,
     get_backend_components,
     get_pipeline_types,
+    uses_url,
     uses_slt,
     slide_support_enabled,
 )
@@ -506,23 +507,23 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         click.echo(f"  Backends: {backends}")
         if config_data.get("backend_components"):
             click.echo(f"  Required backend components: {', '.join(config_data['backend_components'])}")
-        if stt_backend_url:
+        if uses_url(type, "stt") and stt_backend_url:
             click.echo(f"  STT backend URL: {stt_backend_url}")
-        if mt_backend_url:
+        if uses_url(type, "mt") and mt_backend_url:
             click.echo(f"  MT backend URL: {mt_backend_url}")
-        if tts_backend_url:
+        if uses_url(type, "tts") and tts_backend_url:
             click.echo(f"  TTS backend URL: {tts_backend_url}")
-        if tts_backend_engine:
+        if uses_url(type, "tts") and tts_backend_engine:
             click.echo(f"  TTS backend engine: {tts_backend_engine}")
-        if summarizer_backend_url:
+        if uses_url(type, "summarizer") and summarizer_backend_url:
             click.echo(f"  Summarizer backend URL: {summarizer_backend_url}")
-        if text_structurer_online_url:
+        if uses_url(type, "text_structurer_online") and text_structurer_online_url:
             click.echo(f"  Text Structurer online URL: {text_structurer_online_url}")
-        if text_structurer_offline_url:
+        if uses_url(type, "text_structurer_offline") and text_structurer_offline_url:
             click.echo(f"  Text Structurer offline URL: {text_structurer_offline_url}")
-        if llm_backend_url:
+        if uses_url(type, "llm") and llm_backend_url:
             click.echo(f"  LLM backend URL: {llm_backend_url}")
-        if llm_backend_engine:
+        if uses_url(type, "llm") and llm_backend_engine:
             click.echo(f"  LLM backend engine: {llm_backend_engine}")
         click.echo(f"  Domain: {domain}")
         if port:
