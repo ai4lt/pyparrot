@@ -126,7 +126,7 @@ def main():
 @click.option("--text-structurer-online-url", default=None, help="External Text Structurer online model URL")
 @click.option("--text-structurer-offline-url", default=None, help="External Text Structurer offline model URL")
 @click.option("--llm-backend-url", default=None, help="External LLM backend URL")
-@click.option("--stt-backend-engine", type=click.Choice(["faster-whisper", "vllm"]), default="faster-whisper", help="STT backend engine (for local/distributed)")
+@click.option("--stt-backend-engine", type=click.Choice(["faster-whisper", "vllm", "omnifusion"]), default="faster-whisper", help="STT backend engine (for local/distributed)")
 @click.option("--stt-backend-model", type=click.Choice(["large-v2", "Qwen/Qwen2.5-7B-Instruct"]), default="large-v2", help="STT model (for local/distributed)")
 @click.option("--stt-backend-gpu", default=None, help="GPU device ID for STT backend (for local/distributed)")
 @click.option("--mt-backend-engine", type=click.Choice(["vllm"]), default=None, help="MT backend engine (for local/distributed)")
@@ -908,6 +908,7 @@ def start(config_name, component):
                             else:
                                 click.echo(click.style(f"✗ Error: {component_label} backend at {check_url} did not become available within 2 minutes", fg="red"), err=True)
                                 sys.exit(1)
+                    
                     
                     # Register MT backend(s) - support semicolon-separated list
                     if mt_url:

@@ -266,6 +266,7 @@ class TemplateManager:
             "vllm": "vllmserver",
             "tts-kokoro": "tts-kokoro",
             "huggingface-tgi": "huggingface-tgi",
+            "omnifusion": "omnifusion_pyparrot",
         }
         
         if backend_engine not in backend_dirs:
@@ -353,6 +354,8 @@ class TemplateManager:
                         service["build"] = "${BACKENDS_DIR}/" + backend_dir_name
                     else:
                         service["build"] = str(backend_path.parent)
+                elif "build" in service and service["build"].startswith("./"):
+                    service["build"] = "${BACKENDS_DIR}/" + backend_dir_name + "/" + service["build"][2:]
                 
                 # Remove external port exposure (keep internal only)
                 if "ports" in service:
@@ -702,6 +705,8 @@ class TemplateManager:
                         f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/{endpoint}\n")
                     elif stt_backend_engine == "vllm":
                         f.write("STT_BACKEND_URL=http://vllm:8001/asr\n")
+                elif stt_backend_engine == "omnifusion":
+                    f.write(f"STT_BACKEND_URL=http://vllm:8001/slt\n")
 
             if should_write_mt:
                 if mt_backend_url:
