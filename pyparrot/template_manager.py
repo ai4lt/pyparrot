@@ -200,40 +200,51 @@ class TemplateManager:
         
         # Add backend services for local/distributed modes
         if backends_mode in ["local", "distributed"]:
-            backend_compose = self._load_backend_compose(stt_backend_engine, stt_backend_gpu, repo_root)
-            if backend_compose:
-                self._merge_services(composed, backend_compose)
-            
-            # Add MT backend if specified (only for local/distributed with backends_mode enabled)
-            if mt_backend_engine:
-                logger.info(f"Loading MT backend: {mt_backend_engine}")
-                mt_compose = self._load_backend_compose(mt_backend_engine, mt_backend_gpu, repo_root, backend_type="mt")
-                if mt_compose:
-                    self._merge_services(composed, mt_compose)
-                else:
-                    logger.warning(f"Failed to load MT backend: {mt_backend_engine}")
+            if uses_url(pipeline_type, "stt"):
+                backend_compose = self._load_backend_compose(stt_backend_engine, stt_backend_gpu, repo_root)
+                if backend_compose:
+                    self._merge_services(composed, backend_compose)
             else:
-                logger.info("No MT backend engine specified")
+                logger.info("STT backend not required for this pipeline type")
 
-            if tts_backend_engine:
-                logger.info(f"Loading TTS backend: {tts_backend_engine}")
-                tts_compose = self._load_backend_compose(tts_backend_engine, tts_backend_gpu, repo_root, backend_type="tts")
-                if tts_compose:
-                    self._merge_services(composed, tts_compose)
+            if uses_url(pipeline_type, "mt"):
+                if mt_backend_engine:
+                    logger.info(f"Loading MT backend: {mt_backend_engine}")
+                    mt_compose = self._load_backend_compose(mt_backend_engine, mt_backend_gpu, repo_root, backend_type="mt")
+                    if mt_compose:
+                        self._merge_services(composed, mt_compose)
+                    else:
+                        logger.warning(f"Failed to load MT backend: {mt_backend_engine}")
                 else:
-                    logger.warning(f"Failed to load TTS backend: {tts_backend_engine}")
+                    logger.info("No MT backend engine specified")
             else:
-                logger.info("No TTS backend engine specified")
+                logger.info("MT backend not required for this pipeline type")
 
-            if llm_backend_engine:
-                logger.info(f"Loading LLM backend: {llm_backend_engine}")
-                llm_compose = self._load_backend_compose(llm_backend_engine, llm_backend_gpu, repo_root, backend_type="llm")
-                if llm_compose:
-                    self._merge_services(composed, llm_compose)
+            if uses_url(pipeline_type, "tts"):
+                if tts_backend_engine:
+                    logger.info(f"Loading TTS backend: {tts_backend_engine}")
+                    tts_compose = self._load_backend_compose(tts_backend_engine, tts_backend_gpu, repo_root, backend_type="tts")
+                    if tts_compose:
+                        self._merge_services(composed, tts_compose)
+                    else:
+                        logger.warning(f"Failed to load TTS backend: {tts_backend_engine}")
                 else:
-                    logger.warning(f"Failed to load LLM backend: {llm_backend_engine}")
+                    logger.info("No TTS backend engine specified")
             else:
-                logger.info("No LLM backend engine specified")
+                logger.info("TTS backend not required for this pipeline type")
+
+            if uses_url(pipeline_type, "llm"):
+                if llm_backend_engine:
+                    logger.info(f"Loading LLM backend: {llm_backend_engine}")
+                    llm_compose = self._load_backend_compose(llm_backend_engine, llm_backend_gpu, repo_root, backend_type="llm")
+                    if llm_compose:
+                        self._merge_services(composed, llm_compose)
+                    else:
+                        logger.warning(f"Failed to load LLM backend: {llm_backend_engine}")
+                else:
+                    logger.info("No LLM backend engine specified")
+            else:
+                logger.info("LLM backend not required for this pipeline type")
         
         return composed
 
