@@ -7,6 +7,7 @@ import yaml
 import logging
 import subprocess
 from jinja2 import Template
+from .pipeline_types import get_pipeline_templates, has_pipeline_type, uses_slt
 
 logger = logging.getLogger(__name__)
 
@@ -48,16 +49,6 @@ def generate_self_signed_cert(domain: str, cert_path: str, key_path: str) -> Non
 
 class TemplateManager:
     """Manage docker-compose templates for different pipeline types."""
-
-    # Mapping of pipeline types to component templates
-    PIPELINE_TEMPLATES = {
-        "end2end": ["middleware", "asr"],
-        "cascaded": ["middleware", "asr", "mt"],
-        "LT.2025": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
-        "dialog": ["middleware", "asr", "tts", "dialog"],
-        "BOOM-light": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
-        "BOOM": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
-    }
 
     def __init__(self):
         """Initialize template manager."""
@@ -201,10 +192,10 @@ class TemplateManager:
         Returns:
             Complete docker-compose configuration
         """
-        if pipeline_type not in self.PIPELINE_TEMPLATES:
+        if not has_pipeline_type(pipeline_type):
             raise ValueError(f"Unknown pipeline type: {pipeline_type}")
         
-        components = self.PIPELINE_TEMPLATES[pipeline_type]
+        components = get_pipeline_templates(pipeline_type)
         composed = self.merge_templates(components, domain, debug, enable_https, acme_staging)
         
         # Add backend services for local/distributed modes
@@ -660,7 +651,7 @@ class TemplateManager:
                 f.write(f"MT_BACKEND_MODEL={mt_backend_model}\n")
             
             # Write STT_BACKEND_URL based on backend mode, engine, and pipeline type
-            use_slt = pipeline_type in ["end2end", "BOOM-light", "BOOM"]
+            use_slt = uses_slt(pipeline_type)
             
             if backends == "external" and stt_backend_url:
                 # External backends use provided URL as-is
@@ -668,7 +659,7 @@ class TemplateManager:
             elif backends in ["local", "distributed"]:
                 # Local/distributed backends use internal Docker network address
                 if stt_backend_engine == "faster-whisper":
-                    # Use /slt endpoint for end2end, BOOM-light, BOOM; /asr for others
+                    # Use /slt endpoint for pipeline types that require SLT; /asr for others
                     endpoint = "slt" if use_slt else "asr"
                     f.write(f"STT_BACKEND_URL=http://whisper-worker:5008/{endpoint}\n")
                 elif stt_backend_engine == "vllm":
@@ -703,4 +694,3 @@ class TemplateManager:
                     f.write(f"MODEL_ID={llm_backend_model}\n")
                 if hf_token:
                     f.write(f"HUGGING_FACE_HUB_TOKEN={hf_token}\n")
-

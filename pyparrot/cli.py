@@ -13,6 +13,14 @@ from .config import PipelineConfig
 from .pipeline import Pipeline
 from .evaluator import Evaluator
 from .template_manager import TemplateManager
+from .pipeline_types import (
+    default_mt_backend_engine,
+    default_tts_backend_engine,
+    get_backend_components,
+    get_pipeline_types,
+    uses_slt,
+    slide_support_enabled,
+)
 
 # Setup logging
 logging.basicConfig(
@@ -99,7 +107,7 @@ def main():
 )
 @click.option(
     "--type",
-    type=click.Choice(["end2end", "cascaded", "LT.2025", "dialog", "BOOM-light","BOOM"]),
+    type=click.Choice(get_pipeline_types()),
     default="end2end",
     help="Configuration type",
 )
@@ -197,17 +205,16 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         acme_staging = get_value('acme_staging', acme_staging)
         force_https_redirect = get_value('force_https_redirect', force_https_redirect)
         debug = get_value('debug', debug)
+
+        allowed_pipeline_types = get_pipeline_types()
+        if type not in allowed_pipeline_types:
+            raise click.BadParameter(
+                f"Unsupported pipeline type '{type}'. Allowed values: {', '.join(allowed_pipeline_types)}",
+                param_hint="type",
+            )
         
         if config:
             click.echo(click.style("✓ Configuration merged (CLI arguments override file values)", fg="green"))
-        backend_defaults = {
-            "end2end": ["stt"],
-            "cascaded": ["stt", "mt"],
-            "LT.2025": ["stt", "mt", "tts"],
-            "dialog": ["stt", "tts"],
-            "BOOM-light": ["stt", "tts"],
-            "BOOM": ["stt", "tts"],
-        }
         # Determine config directory
         config_dir = os.getenv("PYPARROT_CONFIG_DIR")
         if not config_dir:
@@ -247,7 +254,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
             "type": type,
             "backends": backends,
             "domain": domain,
-            "backend_components": backend_defaults.get(type, []),
+            "backend_components": get_backend_components(type),
             "stt_backend_url": stt_backend_url,
             "mt_backend_url": mt_backend_url,
             "tts_backend_url": tts_backend_url,
@@ -285,16 +292,15 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         if external_https_port:
             config_data["external_https_port"] = external_https_port
 
-        # Auto-enable MT backend for cascaded pipelines
-        if type == "cascaded" and mt_backend_engine is None:
-            mt_backend_engine = "vllm"
+        # Auto-enable MT backend from pipeline type defaults
+        if mt_backend_engine is None:
+            mt_backend_engine = default_mt_backend_engine(type)
 
-        # Auto-enable TTS backend for pipelines that include TTS
-        if backends in ["local", "distributed"] and type in ["LT.2025", "dialog", "BOOM-light", "BOOM"] and tts_backend_engine is None:
-            tts_backend_engine = "tts-kokoro"
+        # Auto-enable TTS backend from pipeline type defaults
+        if backends in ["local", "distributed"] and tts_backend_engine is None:
+            tts_backend_engine = default_tts_backend_engine(type)
 
-        # Auto-enable SLIDE_SUPPORT for BOOM-light and BOOM pipelines
-        slide_support = type in ["BOOM-light", "BOOM"]
+        slide_support = slide_support_enabled(type)
         config_data["slide_support"] = slide_support
 
         # Update config_data with potentially updated backend engines
@@ -768,8 +774,7 @@ def start(config_name, component):
                 mt_name = env_vars.get("MT_BACKEND_NAME", "mt")
                 
                 # Determine if we should register STT as SLT (speech-to-language translation) or ASR (speech-to-text)
-                # Use SLT for: end2end, BOOM-light, BOOM pipeline types
-                use_slt = pipeline_type in ["end2end", "BOOM-light", "BOOM"]
+                use_slt = uses_slt(pipeline_type)
                 stt_component = "slt" if use_slt else "asr"
                 
                 if stt_url or mt_url or tts_url:

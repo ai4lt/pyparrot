@@ -351,7 +351,11 @@ services:
       ARCHIVE: 'http://archive:5000'
       THEME: '${FRONTEND_THEME:-defaulttheme}'
       REDIS_HOST: 'redis'
-      DOMAIN: '$DOMAIN'
+{% if environment.ENABLE_HTTPS == 'true' %}
+      DOMAIN: 'https://${EXTERNAL_HTTPS_DOMAIN_PORT}'
+{% else %}
+      DOMAIN: 'http://${environment.EXTERNAL_DOMAIN_PORT}'
+{% endif %}
       SLIDE_SUPPORT: '${SLIDE_SUPPORT:-false}'
       {% if 'DEBUG_MODE' in environment and environment.DEBUG_MODE == 'true' %}
       DEBUG_MODE: 'true'
