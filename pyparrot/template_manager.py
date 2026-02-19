@@ -554,9 +554,16 @@ class TemplateManager:
                          backends: str = "local", stt_backend_url: str = None,
                          mt_backend_url: str = None, tts_backend_url: str = None,
                          summarizer_backend_url: str = None,
+                         slide_translator_url: str = None,
                          text_structurer_online_url: str = None, text_structurer_offline_url: str = None,
                          llm_backend_url: str = None,
                          stt_backend_engine: str = None, tts_backend_engine: str = None,
+                         summarizer_backend_engine: str = None, summarizer_backend_model: str = None,
+                         summarizer_backend_gpu: str = None,
+                         text_structurer_backend_engine: str = None, text_structurer_backend_model: str = None,
+                         text_structurer_backend_gpu: str = None,
+                         slide_translator_engine: str = None, slide_translator_model: str = None,
+                         slide_translator_gpu: str = None,
                          llm_backend_engine: str = None, llm_backend_model: str = None,
                          stt_backend_model: str = None, mt_backend_engine: str = None,
                          mt_backend_model: str = None, enable_https: bool = False,
@@ -581,8 +588,18 @@ class TemplateManager:
             tts_backend_url: External TTS backend URL
             tts_backend_engine: TTS backend engine (e.g., tts-kokoro)
             summarizer_backend_url: External Summarizer backend URL
+            slide_translator_url: External Slide Translator backend URL
             text_structurer_online_url: External Text Structurer online model URL
             text_structurer_offline_url: External Text Structurer offline model URL
+            summarizer_backend_engine: Summarizer backend engine
+            summarizer_backend_model: Summarizer backend model
+            summarizer_backend_gpu: Summarizer backend GPU device
+            text_structurer_backend_engine: Text structurer backend engine
+            text_structurer_backend_model: Text structurer backend model
+            text_structurer_backend_gpu: Text structurer backend GPU device
+            slide_translator_engine: Slide translator backend engine
+            slide_translator_model: Slide translator backend model
+            slide_translator_gpu: Slide translator backend GPU device
             llm_backend_url: External LLM backend URL
             stt_backend_engine: STT backend engine (e.g., faster-whisper)
             stt_backend_model: STT backend model name (e.g., Qwen2.5-Omni-7B)
@@ -668,6 +685,7 @@ class TemplateManager:
             should_write_summarizer = uses_url(pipeline_type, "summarizer") if known_pipeline_type else True
             should_write_text_structurer_online = uses_url(pipeline_type, "text_structurer_online") if known_pipeline_type else True
             should_write_text_structurer_offline = uses_url(pipeline_type, "text_structurer_offline") if known_pipeline_type else True
+            should_write_slide_translator = uses_url(pipeline_type, "slide_translator") if known_pipeline_type else True
             should_write_llm = uses_url(pipeline_type, "llm") if known_pipeline_type else True
 
             # Write STT_BACKEND_URL based on backend mode, engine, and pipeline type
@@ -705,6 +723,30 @@ class TemplateManager:
 
             if should_write_text_structurer_offline and text_structurer_offline_url:
                 f.write(f"TEXT_STRUCTURER_OFFLINE_URL={text_structurer_offline_url}\n")
+
+            if should_write_slide_translator and slide_translator_url:
+                f.write(f"SLIDE_TRANSLATOR_URL={slide_translator_url}\n")
+
+            if should_write_summarizer and summarizer_backend_engine:
+                f.write(f"SUM_BACKEND_ENGINE={summarizer_backend_engine}\n")
+            if should_write_summarizer and summarizer_backend_model:
+                f.write(f"SUM_BACKEND_MODEL={summarizer_backend_model}\n")
+            if should_write_summarizer and summarizer_backend_gpu:
+                f.write(f"SUM_BACKEND_GPU={summarizer_backend_gpu}\n")
+
+            if should_write_text_structurer_online and text_structurer_backend_engine:
+                f.write(f"TEXT_STRUCTURER_BACKEND_ENGINE={text_structurer_backend_engine}\n")
+            if should_write_text_structurer_online and text_structurer_backend_model:
+                f.write(f"TEXT_STRUCTURER_BACKEND_MODEL={text_structurer_backend_model}\n")
+            if should_write_text_structurer_online and text_structurer_backend_gpu:
+                f.write(f"TEXT_STRUCTURER_BACKEND_GPU={text_structurer_backend_gpu}\n")
+
+            if should_write_slide_translator and slide_translator_engine:
+                f.write(f"SLIDE_TRANSLATOR_ENGINE={slide_translator_engine}\n")
+            if should_write_slide_translator and slide_translator_model:
+                f.write(f"SLIDE_TRANSLATOR_MODEL={slide_translator_model}\n")
+            if should_write_slide_translator and slide_translator_gpu:
+                f.write(f"SLIDE_TRANSLATOR_GPU={slide_translator_gpu}\n")
 
             if should_write_llm:
                 if llm_backend_url:

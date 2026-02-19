@@ -24,7 +24,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     },
     "LT.2025": {
         "templates": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
-        "backend_components": ["stt", "mt", "tts"],
+        "backend_components": ["stt", "mt", "tts", "llm", "summarizer", "text_structurer"],
         "used_urls": [
             "stt",
             "mt",
@@ -41,7 +41,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     },
     "dialog": {
         "templates": ["middleware", "asr", "tts", "dialog"],
-        "backend_components": ["stt", "tts"],
+        "backend_components": ["stt", "tts", "llm"],
         "used_urls": ["stt", "tts", "llm"],
         "use_slt": False,
         "slide_support": False,
@@ -50,7 +50,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     },
     "BOOM-light": {
         "templates": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
-        "backend_components": ["stt", "tts"],
+        "backend_components": ["stt", "tts", "llm", "summarizer", "text_structurer"],
         "used_urls": [
             "stt",
             "mt",
@@ -59,6 +59,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
             "text_structurer_online",
             "text_structurer_offline",
             "llm",
+            "slide_translator",
         ],
         "use_slt": True,
         "slide_support": True,
@@ -67,7 +68,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     },
     "BOOM": {
         "templates": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
-        "backend_components": ["stt", "tts"],
+        "backend_components": ["stt", "tts", "llm", "summarizer", "text_structurer","slide_translator"],
         "used_urls": [
             "stt",
             "mt",
@@ -76,6 +77,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
             "text_structurer_online",
             "text_structurer_offline",
             "llm",
+            "slide_translator",
         ],
         "use_slt": True,
         "slide_support": True,

@@ -122,6 +122,7 @@ def main():
 @click.option("--mt-backend-url", default=None, help="External MT backend URL (when backends=external)")
 @click.option("--tts-backend-url", default=None, help="External TTS backend URL (when backends=external)")
 @click.option("--summarizer-backend-url", default=None, help="External Summarizer backend URL")
+@click.option("--slide-translator-url", default=None, help="External Slide Translator backend URL")
 @click.option("--text-structurer-online-url", default=None, help="External Text Structurer online model URL")
 @click.option("--text-structurer-offline-url", default=None, help="External Text Structurer offline model URL")
 @click.option("--llm-backend-url", default=None, help="External LLM backend URL")
@@ -133,6 +134,15 @@ def main():
 @click.option("--mt-backend-gpu", default=None, help="GPU device ID for MT backend (for local/distributed)")
 @click.option("--tts-backend-engine", type=click.Choice(["tts-kokoro"]), default=None, help="TTS backend engine (for local/distributed)")
 @click.option("--tts-backend-gpu", default=None, help="GPU device ID for TTS backend (for local/distributed)")
+@click.option("--summarizer-backend-engine", default=None, help="Summarizer backend engine")
+@click.option("--summarizer-backend-model", default=None, help="Summarizer backend model")
+@click.option("--summarizer-backend-gpu", default=None, help="GPU device ID for summarizer backend")
+@click.option("--text-structurer-backend-engine", default=None, help="Text structurer backend engine")
+@click.option("--text-structurer-backend-model", default=None, help="Text structurer backend model")
+@click.option("--text-structurer-backend-gpu", default=None, help="GPU device ID for text structurer backend")
+@click.option("--slide-translator-engine", default=None, help="Slide translator backend engine")
+@click.option("--slide-translator-model", default=None, help="Slide translator backend model")
+@click.option("--slide-translator-gpu", default=None, help="GPU device ID for slide translator backend")
 @click.option("--llm-backend-engine", type=click.Choice(["huggingface-tgi"]), default=None, help="LLM backend engine (for local/distributed)")
 @click.option("--llm-backend-model", default="google/gemma-3-12b-it", help="LLM model ID (for local/distributed)")
 @click.option("--llm-backend-gpu", default=None, help="GPU device ID for LLM backend (for local/distributed)")
@@ -148,7 +158,7 @@ def main():
 @click.option("--acme-staging", is_flag=True, help="Use Let's Encrypt staging server (for testing, avoids rate limits)")
 @click.option("--force-https-redirect", is_flag=True, help="Redirect all HTTP traffic to HTTPS")
 @click.option("--debug", is_flag=True, help="Enable debug mode: mount ltfrontend code for live development")
-def configure(config_name, config, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, llm_backend_engine, llm_backend_model, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
+def configure(config_name, config, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, slide_translator_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, summarizer_backend_engine, summarizer_backend_model, summarizer_backend_gpu, text_structurer_backend_engine, text_structurer_backend_model, text_structurer_backend_gpu, slide_translator_engine, slide_translator_model, slide_translator_gpu, llm_backend_engine, llm_backend_model, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
     """Configure a new pipeline and create its configuration directory."""
     try:
         # Load YAML configuration if provided
@@ -180,6 +190,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         mt_backend_url = get_value('mt_backend_url', mt_backend_url)
         tts_backend_url = get_value('tts_backend_url', tts_backend_url)
         summarizer_backend_url = get_value('summarizer_backend_url', summarizer_backend_url)
+        slide_translator_url = get_value('slide_translator_url', slide_translator_url)
         text_structurer_online_url = get_value('text_structurer_online_url', text_structurer_online_url)
         text_structurer_offline_url = get_value('text_structurer_offline_url', text_structurer_offline_url)
         llm_backend_url = get_value('llm_backend_url', llm_backend_url)
@@ -191,6 +202,15 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         mt_backend_gpu = get_value('mt_backend_gpu', mt_backend_gpu)
         tts_backend_engine = get_value('tts_backend_engine', tts_backend_engine)
         tts_backend_gpu = get_value('tts_backend_gpu', tts_backend_gpu)
+        summarizer_backend_engine = get_value('summarizer_backend_engine', summarizer_backend_engine)
+        summarizer_backend_model = get_value('summarizer_backend_model', summarizer_backend_model)
+        summarizer_backend_gpu = get_value('summarizer_backend_gpu', summarizer_backend_gpu)
+        text_structurer_backend_engine = get_value('text_structurer_backend_engine', text_structurer_backend_engine)
+        text_structurer_backend_model = get_value('text_structurer_backend_model', text_structurer_backend_model)
+        text_structurer_backend_gpu = get_value('text_structurer_backend_gpu', text_structurer_backend_gpu)
+        slide_translator_engine = get_value('slide_translator_engine', slide_translator_engine)
+        slide_translator_model = get_value('slide_translator_model', slide_translator_model)
+        slide_translator_gpu = get_value('slide_translator_gpu', slide_translator_gpu)
         llm_backend_engine = get_value('llm_backend_engine', llm_backend_engine)
         llm_backend_model = get_value('llm_backend_model', llm_backend_model)
         llm_backend_gpu = get_value('llm_backend_gpu', llm_backend_gpu)
@@ -260,6 +280,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
             "mt_backend_url": mt_backend_url,
             "tts_backend_url": tts_backend_url,
             "summarizer_backend_url": summarizer_backend_url,
+            "slide_translator_url": slide_translator_url,
             "text_structurer_online_url": text_structurer_online_url,
             "text_structurer_offline_url": text_structurer_offline_url,
             "llm_backend_url": llm_backend_url,
@@ -271,6 +292,15 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
             "mt_backend_gpu": mt_backend_gpu,
             "tts_backend_engine": tts_backend_engine,
             "tts_backend_gpu": tts_backend_gpu,
+            "summarizer_backend_engine": summarizer_backend_engine,
+            "summarizer_backend_model": summarizer_backend_model,
+            "summarizer_backend_gpu": summarizer_backend_gpu,
+            "text_structurer_backend_engine": text_structurer_backend_engine,
+            "text_structurer_backend_model": text_structurer_backend_model,
+            "text_structurer_backend_gpu": text_structurer_backend_gpu,
+            "slide_translator_engine": slide_translator_engine,
+            "slide_translator_model": slide_translator_model,
+            "slide_translator_gpu": slide_translator_gpu,
             "llm_backend_engine": llm_backend_engine,
             "llm_backend_model": llm_backend_model,
             "llm_backend_gpu": llm_backend_gpu,
@@ -442,11 +472,21 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
                 mt_backend_url=mt_backend_url,
                 tts_backend_url=tts_backend_url,
                 summarizer_backend_url=summarizer_backend_url,
+                slide_translator_url=slide_translator_url,
                 text_structurer_online_url=text_structurer_online_url,
                 text_structurer_offline_url=text_structurer_offline_url,
                 llm_backend_url=llm_backend_url,
                 stt_backend_engine=stt_backend_engine,
                 tts_backend_engine=tts_backend_engine,
+                summarizer_backend_engine=summarizer_backend_engine,
+                summarizer_backend_model=summarizer_backend_model,
+                summarizer_backend_gpu=summarizer_backend_gpu,
+                text_structurer_backend_engine=text_structurer_backend_engine,
+                text_structurer_backend_model=text_structurer_backend_model,
+                text_structurer_backend_gpu=text_structurer_backend_gpu,
+                slide_translator_engine=slide_translator_engine,
+                slide_translator_model=slide_translator_model,
+                slide_translator_gpu=slide_translator_gpu,
                 stt_backend_model=stt_backend_model,
                 mt_backend_engine=mt_backend_engine,
                 mt_backend_model=mt_backend_model,
@@ -517,10 +557,30 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
             click.echo(f"  TTS backend engine: {tts_backend_engine}")
         if uses_url(type, "summarizer") and summarizer_backend_url:
             click.echo(f"  Summarizer backend URL: {summarizer_backend_url}")
+        if uses_url(type, "summarizer") and summarizer_backend_engine:
+            click.echo(f"  Summarizer backend engine: {summarizer_backend_engine}")
+        if uses_url(type, "summarizer") and summarizer_backend_model:
+            click.echo(f"  Summarizer backend model: {summarizer_backend_model}")
+        if uses_url(type, "summarizer") and summarizer_backend_gpu:
+            click.echo(f"  Summarizer backend GPU: {summarizer_backend_gpu}")
         if uses_url(type, "text_structurer_online") and text_structurer_online_url:
             click.echo(f"  Text Structurer online URL: {text_structurer_online_url}")
         if uses_url(type, "text_structurer_offline") and text_structurer_offline_url:
             click.echo(f"  Text Structurer offline URL: {text_structurer_offline_url}")
+        if uses_url(type, "text_structurer_online") and text_structurer_backend_engine:
+            click.echo(f"  Text Structurer backend engine: {text_structurer_backend_engine}")
+        if uses_url(type, "text_structurer_online") and text_structurer_backend_model:
+            click.echo(f"  Text Structurer backend model: {text_structurer_backend_model}")
+        if uses_url(type, "text_structurer_online") and text_structurer_backend_gpu:
+            click.echo(f"  Text Structurer backend GPU: {text_structurer_backend_gpu}")
+        if uses_url(type, "slide_translator") and slide_translator_url:
+            click.echo(f"  Slide Translator URL: {slide_translator_url}")
+        if uses_url(type, "slide_translator") and slide_translator_engine:
+            click.echo(f"  Slide Translator engine: {slide_translator_engine}")
+        if uses_url(type, "slide_translator") and slide_translator_model:
+            click.echo(f"  Slide Translator model: {slide_translator_model}")
+        if uses_url(type, "slide_translator") and slide_translator_gpu:
+            click.echo(f"  Slide Translator GPU: {slide_translator_gpu}")
         if uses_url(type, "llm") and llm_backend_url:
             click.echo(f"  LLM backend URL: {llm_backend_url}")
         if uses_url(type, "llm") and llm_backend_engine:
