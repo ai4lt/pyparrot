@@ -8,7 +8,7 @@ services:
       - qbmediator
     environment:
       - QUEUE_SYSTEM=${QUEUE_SYSTEM:-KAFKA}
-    command: python -u StreamSlide.py --queue-server kafka --queue-port 9092 --redis-server redis
+    command: python -u StreamSlide.py --queue-server kafka --queue-port 9092 --redis-server redis --translator-url  ${SLIDE_TRANSLATOR_URL}
     networks:
       - LTPipeline
     restart: on-failure
