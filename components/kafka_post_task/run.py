@@ -17,7 +17,9 @@ topic_partitions = [('mt',25),
                     ('textstructurer',10),
                     ('postproduction',10),
                     ('summarizer',10),
-                    ('log',10)]
+                    ('log',10),
+                    ('slide', 10)]
+
 
 for t,p in topic_partitions:
     if t in existing_topics:
