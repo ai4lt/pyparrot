@@ -1,0 +1,21 @@
+# PyParrot Chat botLocal Configuration
+# Usage: pyparrot configure chatbot --config examples/chatbot.yaml
+
+# Pipeline Configuration
+type: dialog
+backends: local
+
+# Backend Configuration (local mode)
+stt_backend_engine: faster-whisper
+stt_backend_model: large-v2
+stt_backend_gpu: "1"
+
+# Network Configuration
+domain: chat.localhost
+port: 8009
+
+# Frontend Configuration
+website_theme: defaulttheme
+
+# Development
+debug: true

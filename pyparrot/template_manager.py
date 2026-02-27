@@ -552,6 +552,7 @@ class TemplateManager:
 
     def generate_env_file(self, output_dir: str, pipeline_name: str, domain: str,
                          http_port: int, frontend_theme: str, hf_token: str = None,
+                         chat_bots_config_dir: str = None,
                          external_port: int = None, external_https_port: int = None,
                          repo_root: str = None,
                          backends: str = "local", stt_backend_url: str = None,
@@ -583,6 +584,7 @@ class TemplateManager:
             domain: Domain for the pipeline
             http_port: HTTP port number
             frontend_theme: Frontend theme name
+            chat_bots_config_dir: Host directory to mount as /config for bot config files
             repo_root: Absolute path to repository root (contains components dir)
             external_https_port: External HTTPS port for reverse proxy
             backends: Backend integration mode (local, distributed, external)
@@ -628,6 +630,12 @@ class TemplateManager:
             # Fallback: calculate from template_dir
             components_dir = str(self.template_dir.parent.parent / "components")
             backends_dir = str(self.template_dir.parent.parent / "backends")
+
+        if chat_bots_config_dir:
+            resolved_chat_bots_config_dir = str(Path(chat_bots_config_dir).resolve())
+        else:
+            # Default to chatfrontend chat directory, where bots.json lives.
+            resolved_chat_bots_config_dir = str(Path(components_dir) / "chatfrontend" / "chat")
         
         # Use an externally reachable port if provided (e.g., behind Nginx), otherwise fall back to http_port
         effective_external_port = external_port if external_port else http_port
@@ -659,6 +667,7 @@ class TemplateManager:
             f.write(f"DOCKER_GID={docker_gid}\n")
             f.write(f"COMPONENTS_DIR={components_dir}\n")
             f.write(f"BACKENDS_DIR={backends_dir}\n")
+            f.write(f"CHAT_BOTS_CONFIG_DIR={resolved_chat_bots_config_dir}\n")
             f.write(f"HF_TOKEN={hf_token or ''}\n")
             f.write(f"BACKENDS={backends}\n")
             f.write(f"DEBUG_MODE={'true' if debug else 'false'}\n")

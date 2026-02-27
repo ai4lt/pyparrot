@@ -152,13 +152,20 @@ def main():
 @click.option("--domain", default="pyparrot.localhost", help="Domain for the pipeline (use a real domain for public deployments)")
 @click.option("--website-theme", default="defaulttheme", help="Website theme")
 @click.option("--hf-token", default=None, help="HF token for dialog components")
+@click.option(
+    "--dialog-config-dir",
+    "chat_bots_config_dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=None,
+    help="Host directory mounted as /config for chatfrontend and bot (expects /config/bots.json).",
+)
 @click.option("--enable-https", is_flag=True, help="Enable HTTPS support (auto-generates self-signed certs for localhost, uses Let's Encrypt for real domains)")
 @click.option("--https-port", type=int, default=443, help="Port for HTTPS traffic")
 @click.option("--acme-email", default=None, help="Email for Let's Encrypt ACME registration (required for non-localhost domains with HTTPS)")
 @click.option("--acme-staging", is_flag=True, help="Use Let's Encrypt staging server (for testing, avoids rate limits)")
 @click.option("--force-https-redirect", is_flag=True, help="Redirect all HTTP traffic to HTTPS")
 @click.option("--debug", is_flag=True, help="Enable debug mode: mount ltfrontend code for live development")
-def configure(config_name, config, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, slide_translator_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, summarizer_backend_engine, summarizer_backend_model, summarizer_backend_gpu, text_structurer_backend_engine, text_structurer_backend_model, text_structurer_backend_gpu, slide_translator_engine, slide_translator_model, slide_translator_gpu, llm_backend_engine, llm_backend_model, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
+def configure(config_name, config, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, slide_translator_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, summarizer_backend_engine, summarizer_backend_model, summarizer_backend_gpu, text_structurer_backend_engine, text_structurer_backend_model, text_structurer_backend_gpu, slide_translator_engine, slide_translator_model, slide_translator_gpu, llm_backend_engine, llm_backend_model, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, chat_bots_config_dir, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
     """Configure a new pipeline and create its configuration directory."""
     try:
         # Load YAML configuration if provided
@@ -220,6 +227,15 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         domain = get_value('domain', domain)
         website_theme = get_value('website_theme', website_theme)
         hf_token = get_value('hf_token', hf_token)
+        chat_bots_config_dir = get_value('chat_bots_config_dir', chat_bots_config_dir)
+        if chat_bots_config_dir:
+            path_obj = Path(chat_bots_config_dir)
+            if not path_obj.is_absolute() and config:
+                # Resolve relative YAML paths from the YAML file location.
+                path_obj = (Path(config).parent / path_obj).resolve()
+            else:
+                path_obj = path_obj.resolve()
+            chat_bots_config_dir = str(path_obj)
         enable_https = get_value('enable_https', enable_https)
         https_port = get_value('https_port', https_port)
         acme_email = get_value('acme_email', acme_email)
@@ -322,6 +338,8 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
             config_data["external_port"] = external_port
         if external_https_port:
             config_data["external_https_port"] = external_https_port
+        if chat_bots_config_dir:
+            config_data["chat_bots_config_dir"] = chat_bots_config_dir
 
         # Auto-enable MT backend from pipeline type defaults
         if mt_backend_engine is None:
@@ -464,6 +482,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
                 http_port=port,
                 frontend_theme=website_theme,
                 hf_token=hf_token,
+                chat_bots_config_dir=chat_bots_config_dir,
                 external_port=external_port,
                 external_https_port=external_https_port,
                 repo_root=repo_root,
@@ -590,6 +609,8 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
             click.echo(f"  Port: {port}")
         if website_theme:
             click.echo(f"  Website Theme: {website_theme}")
+        if chat_bots_config_dir:
+            click.echo(f"  Dialog Config Dir: {chat_bots_config_dir}")
         if debug:
             click.echo(f"  Debug Mode: enabled")
         if admin_password:
@@ -599,6 +620,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
 
         # Save configuration to the subdirectory
         config_file = config_subdir / f"{config_name}.yaml"
+        pipeline_config.to_yaml(str(config_file))
         logger.info(f"Saved configuration to {config_file}")
         click.echo(f"\nConfiguration saved to {click.style(str(config_file), fg='green')}")
         click.echo(f"Configuration directory: {click.style(str(config_subdir), fg='green')}")

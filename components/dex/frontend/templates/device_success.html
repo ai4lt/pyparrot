@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Device Authorized</title>
+    <link rel="stylesheet" href="{{ url .ReqPath "static/styles.css" }}" />
+  </head>
+  <body>
+    <header>
+      {{ template "header.dex.html" . }}
+    </header>
+
+    <main class="dex-card">
+      <h1 class="dex-title">Login successful for {{ .ClientName }}</h1>
+      <p>Return to your device to continue.</p>
+    </main>
+    {{ template "footer.dex.html" . }}
+  </body>
+</html>

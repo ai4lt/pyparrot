@@ -14,11 +14,13 @@ services:
       - DEBUG=True
       - HF_TOKEN=${HF_TOKEN:-}
       - LLM_BACKEND_URL=${LLM_BACKEND_URL}
+      - CHAT_BOTS_CONFIG=/config/bots.json
     restart: on-failure
     depends_on:
       - qbmediator
     volumes:
       - archive:/logs/archive
+      - ${CHAT_BOTS_CONFIG_DIR}:/config:ro
 
   kitmeetingbutler:
     image: registry.isl.iar.kit.edu/kitmeetingbutler

@@ -106,6 +106,7 @@ class PipelineConfig(BaseModel):
     acme_staging: bool = Field(default=False, description="Use Let's Encrypt staging server (for testing)")
     force_https_redirect: bool = Field(default=False, description="Force redirect HTTP to HTTPS")
     slide_support: bool = Field(default=False, description="Enable slide viewer support in frontend")
+    chat_bots_config_dir: Optional[str] = Field(default=None, description="Host directory mounted as /config for chatfrontend and bot")
 
     class Config:
         json_schema_extra = {
