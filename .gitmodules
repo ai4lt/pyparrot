@@ -67,3 +67,6 @@
 [submodule "components/chatfrontend"]
 	path = components/chatfrontend
 	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/chatfrontend.git
+[submodule "backends/summarization-server"]
+	path = backends/summarization-server
+	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/summarization-server.git

@@ -348,14 +348,27 @@ class TemplateManager:
                                     new_depends_on[dep_name] = dep_config
                             service["depends_on"] = new_depends_on
                 
-                # Update build path to use BACKENDS_DIR
-                if "build" in service and service["build"] == ".":
-                    if repo_root:
-                        service["build"] = "${BACKENDS_DIR}/" + backend_dir_name
-                    else:
-                        service["build"] = str(backend_path.parent)
-                elif "build" in service and service["build"].startswith("./"):
-                    service["build"] = "${BACKENDS_DIR}/" + backend_dir_name + "/" + service["build"][2:]
+                # Update build path to use BACKENDS_DIR for both string and dict forms.
+                if "build" in service:
+                    build_value = service["build"]
+                    if isinstance(build_value, str):
+                        if build_value == ".":
+                            if repo_root:
+                                service["build"] = "${BACKENDS_DIR}/" + backend_dir_name
+                            else:
+                                service["build"] = str(backend_path.parent)
+                        elif build_value.startswith("./"):
+                            service["build"] = "${BACKENDS_DIR}/" + backend_dir_name + "/" + build_value[2:]
+                    elif isinstance(build_value, dict):
+                        build_context = build_value.get("context")
+                        if isinstance(build_context, str):
+                            if build_context == ".":
+                                if repo_root:
+                                    build_value["context"] = "${BACKENDS_DIR}/" + backend_dir_name
+                                else:
+                                    build_value["context"] = str(backend_path.parent)
+                            elif build_context.startswith("./"):
+                                build_value["context"] = "${BACKENDS_DIR}/" + backend_dir_name + "/" + build_context[2:]
                 
                 # Remove external port exposure (keep internal only)
                 if "ports" in service:
