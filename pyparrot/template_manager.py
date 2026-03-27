@@ -582,6 +582,7 @@ class TemplateManager:
                          slide_translator_engine: str = None, slide_translator_model: str = None,
                          slide_translator_gpu: str = None,
                          llm_backend_engine: str = None, llm_backend_model: str = None,
+                         llm_backend_quantization: str = None,
                          stt_backend_model: str = None, mt_backend_engine: str = None,
                          mt_backend_model: str = None, enable_https: bool = False,
                          https_port: int = 443, acme_email: str = None,
@@ -625,6 +626,7 @@ class TemplateManager:
             mt_backend_model: MT backend model name (e.g., Qwen/Qwen2.5-7B-Instruct)
             llm_backend_engine: LLM backend engine (e.g., huggingface-tgi)
             llm_backend_model: LLM backend model ID (e.g., google/gemma-3-12b-it)
+            llm_backend_quantization: LLM backend quantization mode (e.g., bitsandbytes-nf4)
             enable_https: Enable HTTPS support
             https_port: HTTPS port number
             acme_email: Email for Let's Encrypt
@@ -784,5 +786,7 @@ class TemplateManager:
             if should_write_llm and llm_backend_engine == "huggingface-tgi":
                 if llm_backend_model:
                     f.write(f"MODEL_ID={llm_backend_model}\n")
+                if llm_backend_quantization:
+                    f.write(f"LLM_BACKEND_QUANTIZATION={llm_backend_quantization}\n")
                 if hf_token:
                     f.write(f"HUGGING_FACE_HUB_TOKEN={hf_token}\n")

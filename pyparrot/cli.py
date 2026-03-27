@@ -145,6 +145,7 @@ def main():
 @click.option("--slide-translator-gpu", default=None, help="GPU device ID for slide translator backend")
 @click.option("--llm-backend-engine", type=click.Choice(["huggingface-tgi"]), default=None, help="LLM backend engine (for local/distributed)")
 @click.option("--llm-backend-model", default="google/gemma-3-12b-it", help="LLM model ID (for local/distributed)")
+@click.option("--llm-backend-quantization", type=click.Choice(["bitsandbytes", "bitsandbytes-nf4", "bitsandbytes-fp4"]), default=None, help="LLM quantization mode (for local/distributed)")
 @click.option("--llm-backend-gpu", default=None, help="GPU device ID for LLM backend (for local/distributed)")
 @click.option("--port", type=int, default=8001, help="Internal port Traefik listens on (mapped from host)")
 @click.option("--external-port", type=int, default=None, help="Externally reachable port (e.g., when behind Nginx). Defaults to --port.")
@@ -165,7 +166,7 @@ def main():
 @click.option("--acme-staging", is_flag=True, help="Use Let's Encrypt staging server (for testing, avoids rate limits)")
 @click.option("--force-https-redirect", is_flag=True, help="Redirect all HTTP traffic to HTTPS")
 @click.option("--debug", is_flag=True, help="Enable debug mode: mount ltfrontend code for live development")
-def configure(config_name, config, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, slide_translator_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, summarizer_backend_engine, summarizer_backend_model, summarizer_backend_gpu, text_structurer_backend_engine, text_structurer_backend_model, text_structurer_backend_gpu, slide_translator_engine, slide_translator_model, slide_translator_gpu, llm_backend_engine, llm_backend_model, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, chat_bots_config_dir, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
+def configure(config_name, config, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, slide_translator_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, summarizer_backend_engine, summarizer_backend_model, summarizer_backend_gpu, text_structurer_backend_engine, text_structurer_backend_model, text_structurer_backend_gpu, slide_translator_engine, slide_translator_model, slide_translator_gpu, llm_backend_engine, llm_backend_model, llm_backend_quantization, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, chat_bots_config_dir, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
     """Configure a new pipeline and create its configuration directory."""
     try:
         # Load YAML configuration if provided
@@ -220,6 +221,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         slide_translator_gpu = get_value('slide_translator_gpu', slide_translator_gpu)
         llm_backend_engine = get_value('llm_backend_engine', llm_backend_engine)
         llm_backend_model = get_value('llm_backend_model', llm_backend_model)
+        llm_backend_quantization = get_value('llm_backend_quantization', llm_backend_quantization)
         llm_backend_gpu = get_value('llm_backend_gpu', llm_backend_gpu)
         port = get_value('port', port)
         external_port = get_value('external_port', external_port)
@@ -319,6 +321,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
             "slide_translator_gpu": slide_translator_gpu,
             "llm_backend_engine": llm_backend_engine,
             "llm_backend_model": llm_backend_model,
+            "llm_backend_quantization": llm_backend_quantization,
             "llm_backend_gpu": llm_backend_gpu,
             "enable_https": enable_https,
             "https_port": https_port,
@@ -511,6 +514,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
                 mt_backend_model=mt_backend_model,
                 llm_backend_engine=llm_backend_engine,
                 llm_backend_model=llm_backend_model,
+                llm_backend_quantization=llm_backend_quantization,
                 enable_https=enable_https,
                 https_port=https_port,
                 acme_email=acme_email,
@@ -604,6 +608,8 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
             click.echo(f"  LLM backend URL: {llm_backend_url}")
         if uses_url(type, "llm") and llm_backend_engine:
             click.echo(f"  LLM backend engine: {llm_backend_engine}")
+        if uses_url(type, "llm") and llm_backend_quantization:
+            click.echo(f"  LLM backend quantization: {llm_backend_quantization}")
         click.echo(f"  Domain: {domain}")
         if port:
             click.echo(f"  Port: {port}")

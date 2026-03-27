@@ -88,6 +88,7 @@ class PipelineConfig(BaseModel):
     llm_backend_url: Optional[str] = Field(default=None, description="External backend URL for LLM")
     llm_backend_engine: Optional[str] = Field(default=None, description="LLM backend engine (e.g., huggingface-tgi) for local/distributed modes")
     llm_backend_model: Optional[str] = Field(default=None, description="LLM backend model ID for local/distributed modes")
+    llm_backend_quantization: Optional[str] = Field(default=None, description="LLM backend quantization mode for local/distributed modes")
     llm_backend_gpu: Optional[str] = Field(default=None, description="GPU device ID for LLM backend (e.g., '0', '1', or None for CPU)")
     stt_backend_engine: str = Field(default="faster-whisper", description="STT backend engine (faster-whisper) for local/distributed modes")
     stt_backend_model: str = Field(default="large-v2", description="STT model (large-v2) for local/distributed modes")
