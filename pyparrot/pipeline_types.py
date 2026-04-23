@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
     "end2end": {
-        "templates": ["middleware", "asr"],
+        "templates": ["middleware", "lt_ui", "asr"],
         "backend_components": ["stt"],
         "used_urls": ["stt"],
         "use_slt": True,
@@ -14,7 +14,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
         "default_tts_backend_engine": None,
     },
     "cascaded": {
-        "templates": ["middleware", "asr", "mt"],
+        "templates": ["middleware", "lt_ui", "asr", "mt"],
         "backend_components": ["stt", "mt"],
         "used_urls": ["stt", "mt"],
         "use_slt": False,
@@ -23,7 +23,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
         "default_tts_backend_engine": None,
     },
     "LT.2025": {
-        "templates": ["middleware", "asr", "mt", "tts", "dialog", "markup"],
+        "templates": ["middleware", "lt_ui", "asr", "mt", "tts", "dialog", "markup"],
         "backend_components": ["stt", "mt", "tts", "llm", "summarizer", "text_structurer"],
         "used_urls": [
             "stt",
@@ -40,7 +40,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
         "default_tts_backend_engine": "tts-kokoro",
     },
     "dialog": {
-        "templates": ["middleware", "asr", "tts", "dialog"],
+        "templates": ["middleware", "chat_ui", "asr", "tts", "dialog"],
         "backend_components": ["stt", "tts", "llm"],
         "used_urls": ["stt", "tts", "llm"],
         "use_slt": False,
@@ -49,7 +49,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
         "default_tts_backend_engine": "tts-kokoro",
     },
     "BOOM-light": {
-        "templates": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
+        "templates": ["middleware", "lt_ui", "asr", "tts", "dialog", "markup", "boom"],
         "backend_components": ["stt", "tts", "llm", "summarizer", "text_structurer"],
         "used_urls": [
             "stt",
@@ -67,7 +67,7 @@ PIPELINE_DEFINITIONS: Dict[str, Dict[str, object]] = {
         "default_tts_backend_engine": "tts-kokoro",
     },
     "BOOM": {
-        "templates": ["middleware", "asr", "tts", "dialog", "markup", "boom"],
+        "templates": ["middleware", "lt_ui", "asr", "tts", "dialog", "markup", "boom"],
         "backend_components": ["stt", "tts", "llm", "summarizer", "text_structurer","slide_translator"],
         "used_urls": [
             "stt",

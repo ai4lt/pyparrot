@@ -9,8 +9,7 @@ rule.loggedin.action = auth
 rule.loggedin.rule = HeadersRegexp("cookie", ".*_forward_auth=.*") && Path("/{path:$|[^_].*$|...............................................................................................................................................................................}")
 
 rule.main.action = allow
-rule.main.rule = Path("/") || PathPrefix("/static/") || PathPrefix("/index/live") || PathPrefix("/archive/") || PathPrefix("/index/archive") || PathPrefix("/overview/") || PathPrefix("/session/")
+rule.main.rule = Path("/") || PathPrefix("/static/") || PathPrefix("/index/live") || PathPrefix("/archive/") || PathPrefix("/index/archive") || PathPrefix("/overview/") || PathPrefix("/session/") || Path("/about") || Path("/legals") || Path("/terms") || Path("/contact")
 
 rule.ltapi.action = allow
 rule.ltapi.rule = PathPrefix("/ltapi/{session:[0-9]+}/getgraph") || PathPrefix("/ltapi/stream") || PathPrefix("/ltapi/{session:[0-9]+}/{stream:[a-zA-Z0-9_]+}/get_output_language_component") || PathPrefix("/ltapi/{session:[0-9]+}/get_previous_messages") || PathPrefix("/ltapi/do_urlshortening") || PathPrefix("/ltapi/shorten")
-

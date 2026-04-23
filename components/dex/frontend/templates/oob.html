@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Out of Band</title>
+    <link rel="stylesheet" href="{{ url .ReqPath "static/styles.css" }}" />
+  </head>
+  <body>
+    <header>
+      {{ template "header.dex.html" . }}
+    </header>
+
+    <main class="dex-card">
+      <h1 class="dex-title">Login successful</h1>
+      <p>Please copy this code, switch to your application, and paste it there:</p>
+      <input type="text" class="theme-form-input" value="{{ .Code }}" readonly onclick="this.select();" />
+    </main>
+    {{ template "footer.dex.html" . }}
+  </body>
+</html>

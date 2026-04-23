@@ -15,6 +15,11 @@ storage:
 web:
   http: 0.0.0.0:5556
 
+frontend:
+  dir: {{ getenv "DEX_FRONTEND_DIR" }}
+  theme: light
+  issuer: Lecture Translator
+
 oauth2:
   skipApprovalScreen: true
 
@@ -40,4 +45,3 @@ staticPasswords:
 telemetry:
   http: 0.0.0.0:5558
   # enableProfiling: true
-

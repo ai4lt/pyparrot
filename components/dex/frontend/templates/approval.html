@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Approval</title>
+    <link rel="stylesheet" href="{{ url .ReqPath "static/styles.css" }}" />
+  </head>
+  <body>
+    <header>
+      {{ template "header.dex.html" . }}
+    </header>
+
+    <main class="dex-card">
+      <h1 class="dex-title">Grant access</h1>
+
+      <hr class="dex-separator" />
+      <div>
+        {{ if .Scopes }}
+        <div class="dex-subtle-text">{{ .Client }} would like to:</div>
+        <ul class="dex-list">
+          {{ range $scope := .Scopes }}
+          <li>{{ $scope }}</li>
+          {{ end }}
+        </ul>
+        {{ else }}
+        <div class="dex-subtle-text">{{ .Client }} has not requested any personal information</div>
+        {{ end }}
+      </div>
+      <hr class="dex-separator" />
+
+      <div>
+        <div class="theme-form-row">
+          <form method="post">
+            <input type="hidden" name="req" value="{{ .AuthReqID }}" />
+            <input type="hidden" name="approval" value="approve" />
+            <button type="submit" class="dex-btn theme-btn--success">Grant Access</button>
+          </form>
+        </div>
+
+        <div class="theme-form-row">
+          <form method="post">
+            <input type="hidden" name="req" value="{{ .AuthReqID }}" />
+            <input type="hidden" name="approval" value="rejected" />
+            <button type="submit" class="dex-btn theme-btn-provider">Cancel</button>
+          </form>
+        </div>
+      </div>
+    </main>
+    {{ template "footer.dex.html" . }}
+  </body>
+</html>

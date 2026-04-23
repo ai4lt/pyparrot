@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Device Authorization</title>
+    <link rel="stylesheet" href="{{ url .ReqPath "static/styles.css" }}" />
+  </head>
+  <body>
+    <header>
+      {{ template "header.dex.html" . }}
+    </header>
+
+    <main class="dex-card">
+      <h1 class="dex-title">Enter user code</h1>
+
+      <form method="post" action="{{ .PostURL }}">
+        <div class="theme-form-row">
+          {{ if .UserCode }}
+          <input tabindex="2" required id="user_code" name="user_code" type="text" class="theme-form-input" autocomplete="off" value="{{ .UserCode }}" {{ if .Invalid }} autofocus {{ end }} />
+          {{ else }}
+          <input tabindex="2" required id="user_code" name="user_code" type="text" class="theme-form-input" placeholder="XXXX-XXXX" autocomplete="off" {{ if .Invalid }} autofocus {{ end }} />
+          {{ end }}
+        </div>
+
+        {{ if .Invalid }}
+        <div id="login-error" class="dex-error-box">Invalid or expired user code</div>
+        {{ end }}
+
+        <button tabindex="3" id="submit-login" type="submit" class="dex-btn theme-btn--primary">Submit</button>
+      </form>
+    </main>
+    {{ template "footer.dex.html" . }}
+  </body>
+</html>

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Error</title>
+    <link rel="stylesheet" href="{{ url .ReqPath "static/styles.css" }}" />
+  </head>
+  <body>
+    <header>
+      {{ template "header.dex.html" . }}
+    </header>
+
+    <main class="dex-card">
+      <h1 class="dex-title">{{ .ErrType }}</h1>
+      <p>{{ .ErrMsg }}</p>
+    </main>
+    {{ template "footer.dex.html" . }}
+  </body>
+</html>
