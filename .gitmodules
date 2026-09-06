@@ -70,3 +70,5 @@
 [submodule "backends/summarization-server"]
 	path = backends/summarization-server
 	url = https://gitlab.kit.edu/kit/isl-ai4lt/lt-middleware/summarization-server.git
+[submodule "badmodule"]
+	update = none

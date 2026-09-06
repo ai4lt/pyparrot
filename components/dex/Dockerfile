@@ -1,4 +1,4 @@
-FROM dexidp/dex:latest
+FROM dexidp/dex:v2.45.1
 
 USER root
 
