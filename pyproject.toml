@@ -38,3 +38,6 @@ pyparrot = "pyparrot.cli:main"
 where = ["."]
 include = ["pyparrot*"]
 exclude = ["tests*", "config*"]
+
+[tool.setuptools.package-data]
+pyparrot = ["templates/**/*"]

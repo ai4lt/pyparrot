@@ -6,6 +6,7 @@ import os
 import yaml
 import logging
 import subprocess
+import shutil
 from jinja2 import Template
 from .pipeline_types import get_pipeline_templates, has_pipeline_type, uses_slt, uses_url
 
@@ -562,6 +563,14 @@ class TemplateManager:
                 f.write(rules_content)
             
             logger.info(f"Generated traefik rules: {rules_file}")
+
+            auth_context = traefik_dir / "optional-auth"
+            shutil.copytree(
+                self.traefik_template_dir / "optional-auth",
+                auth_context,
+                dirs_exist_ok=True,
+            )
+            shutil.copyfile(rules_file, auth_context / "rules.ini")
 
     def generate_env_file(self, output_dir: str, pipeline_name: str, domain: str,
                          http_port: int, frontend_theme: str, hf_token: str = None,

@@ -105,7 +105,8 @@ services:
       - "traefik.http.services.dex.loadbalancer.server.port=5556"
 
   traefik-forward-auth:
-    image: 'thomseddon/traefik-forward-auth:latest'
+    image: 'pyparrot/traefik-forward-auth:2.2.0-optional.1'
+    build: './traefik/optional-auth'
     depends_on:
       traefik:
         condition: service_healthy
@@ -162,6 +163,7 @@ services:
       - 'traefik.enable=true'
       - 'traefik.http.middlewares.traefik-forward-auth.forwardauth.address=http://traefik-forward-auth:4181'
       - 'traefik.http.middlewares.traefik-forward-auth.forwardauth.authResponseHeaders=X-Forwarded-User'
+      - 'traefik.http.middlewares.traefik-forward-auth.forwardauth.addAuthCookiesToResponse=_forward_auth'
       - 'traefik.http.services.traefik-forward-auth.loadbalancer.server.port=4181'
       - 'traefik.http.middlewares.logout.replacepathregex.regex=^/logout$$'
       - 'traefik.http.middlewares.logout.replacepathregex.replacement=/_oauth/logout'
