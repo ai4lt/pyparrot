@@ -13,6 +13,7 @@ from .config import PipelineConfig
 from .pipeline import Pipeline
 from .evaluator import Evaluator
 from .template_manager import TemplateManager
+from .local_dependencies import local_dependency_override
 from .pipeline_types import (
     default_mt_backend_engine,
     default_tts_backend_engine,
@@ -692,25 +693,22 @@ def build(config_name, component, no_cache):
             click.echo(click.style(f"Error: {e}", fg="red"), err=True)
             sys.exit(1)
 
-        # Build command
-        cmd = docker_cmd + ["-f", str(docker_compose_file), "build"]
-
-        if no_cache:
-            cmd.append("--no-cache")
-
-        # Add specific components if provided
-        if component:
-            cmd.extend(component)
-
         click.echo(click.style(f"Building Docker images for pipeline: {config_name}", fg="cyan", bold=True))
         click.echo(f"Config directory: {config_subdir}")
-        if component:
-            click.echo(f"Components: {', '.join(component)}")
-        else:
-            click.echo("Components: all")
+        click.echo(f"Components: {', '.join(component) if component else 'all'}")
 
-        # Run docker-compose build
-        result = subprocess.run(cmd, cwd=str(config_subdir), capture_output=False)
+        compose_command = docker_cmd + ["-f", str(docker_compose_file)]
+        with local_dependency_override(compose_command, config_subdir, component) as override:
+            cmd = list(compose_command)
+            if override:
+                consumers = yaml.safe_load(override.read_text())["services"]
+                click.echo(f"Using local qbmediator wheel for: {', '.join(consumers)}")
+                cmd.extend(["-f", str(override)])
+            cmd.append("build")
+            if no_cache:
+                cmd.append("--no-cache")
+            cmd.extend(component)
+            result = subprocess.run(cmd, cwd=str(config_subdir), capture_output=False)
 
         if result.returncode == 0:
             click.echo(click.style("✓ Successfully built Docker images", fg="green"))

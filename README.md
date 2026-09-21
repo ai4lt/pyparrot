@@ -148,3 +148,9 @@ pyparrot/
 ## License
 
 MIT
+
+For Kafka setup and fresh-cluster migration from ZooKeeper, see [Kafka with KRaft](docs/kafka-kraft.md).
+
+`pyparrot build` automatically supplies the local mediator to dependent component builds. See [Local mediator builds](docs/local-qbmediator.md).
+
+Kafka client and broker version defaults, deployment overrides, and standalone compatibility are described in [Kafka version configuration](docs/kafka-versions.md).

@@ -169,40 +169,37 @@ services:
       - 'traefik.http.middlewares.logout.replacepathregex.replacement=/_oauth/logout'
     restart: 'unless-stopped'
 
-  zookeeper:
-    image: 'bitnami/zookeeper:latest'
-    #ports:
-    #  - '2181:2181'
-    environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
-    networks:
-      - LTPipeline
-    restart: on-failure
-
   kafka:
-    image: 'bitnamilegacy/kafka:3.9.0'
+    image: ${KAFKA_IMAGE:-apache/kafka:3.9.2@sha256:05b4616e0702ef2729327705d54ad6b50ea70b271c4b730fabd2320789fb7b02}
     environment:
-      - KAFKA_BROKER_ID=1
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - ALLOW_PLAINTEXT_LISTENER=yes
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      - KAFKA_CFG_LISTENERS=CLIENT://:9092,EXTERNAL://:${MEDIATOR_PORT:-9093}
-      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka:9092,EXTERNAL://localhost:${MEDIATOR_PORT:-9093}
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=CLIENT
-      - KAFKA_ENABLE_KRAFT="false"
-    depends_on:
-     - zookeeper
+      CLUSTER_ID: '${KAFKA_CLUSTER_ID:?Generate a stable KAFKA_CLUSTER_ID in the deployment .env}'
+      KAFKA_NODE_ID: '1'
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CLIENT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENERS: CLIENT://:9092,CONTROLLER://:9094
+      KAFKA_ADVERTISED_LISTENERS: CLIENT://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: CLIENT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: '1'
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: '1'
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: '1'
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     networks:
       - LTPipeline
     healthcheck:
-        test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
-        interval: 5s
-        timeout: 5s
-        start_period: 5s
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
     restart: on-failure
 
   kafka_post_task:
-    image: registry.isl.iar.kit.edu/kafka_post_task
+    image: pyparrot-kafka-post-task:local
+    pull_policy: build
     build: ${COMPONENTS_DIR}/kafka_post_task
     depends_on:
       kafka:
@@ -414,6 +411,7 @@ volumes:
     name: 'certs'
   logs: {}
   archive: {}
+  kafka_data: {}
   redis_data: {}
   mlflow_data: {}
   dex_data: {}

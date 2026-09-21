@@ -3,6 +3,9 @@
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import os
+import base64
+import uuid
+from dotenv import dotenv_values
 import yaml
 import logging
 import subprocess
@@ -247,7 +250,8 @@ class TemplateManager:
             else:
                 logger.info("LLM backend not required for this pipeline type")
         
-        return composed
+        from .versions import configure_kafka_builds
+        return configure_kafka_builds(composed)
 
     def _load_backend_compose(self, backend_engine: str, gpu_device: str = None, repo_root: str = None, backend_type: str = "stt") -> Dict[str, Any]:
         """Load backend service configuration.
@@ -666,6 +670,13 @@ class TemplateManager:
         # Use an externally reachable HTTPS port if provided (e.g., behind Nginx), otherwise fall back to https_port
         effective_external_https_port = external_https_port if external_https_port else https_port
         env_file = config_dir / ".env"
+        # Cluster identity belongs to the persisted Kafka volume, not each render.
+        existing_env = dotenv_values(env_file, interpolate=False) if env_file.exists() else {}
+        from .versions import deployment_versions
+        versions = deployment_versions(existing_env, pipeline_name)
+        cluster_id = existing_env.get("KAFKA_CLUSTER_ID") or base64.urlsafe_b64encode(
+            uuid.uuid4().bytes
+        ).decode("ascii").rstrip("=")
         with open(env_file, "w") as f:
             try:
                 host_uid = os.getuid()
@@ -686,6 +697,9 @@ class TemplateManager:
             f.write(f"HTTPS_DOMAIN_PORT={domain}:{https_port}\n")
             f.write(f"EXTERNAL_HTTPS_DOMAIN_PORT={domain}:{effective_external_https_port}\n")
             f.write(f"PIPELINE_NAME={pipeline_name}\n")
+            f.write(f"KAFKA_CLUSTER_ID={cluster_id}\n")
+            for key, value in versions.items():
+                f.write(f"{key}={value}\n")
             f.write(f"HOST_UID={host_uid}\n")
             f.write(f"HOST_GID={host_gid}\n")
             f.write(f"DOCKER_GID={docker_gid}\n")

@@ -1,0 +1,34 @@
+diff --git a/internal/config.go b/internal/config.go
+--- a/internal/config.go
++++ b/internal/config.go
+@@ -356,8 +356,8 @@
+ 
+ // Validate validates a rule
+ func (r *Rule) Validate(c *Config) error {
+-	if r.Action != "auth" && r.Action != "allow" {
+-		return errors.New("invalid rule action, must be \"auth\" or \"allow\"")
++	if r.Action != "auth" && r.Action != "allow" && r.Action != "optional" {
++		return errors.New("invalid rule action, must be \"auth\", \"allow\" or \"optional\"")
+ 	}
+ 
+ 	return c.setupProvider(r.Provider)
+diff --git a/internal/server.go b/internal/server.go
+--- a/internal/server.go
++++ b/internal/server.go
+@@ -31,6 +31,8 @@
+ 		matchRule := rule.formattedRule()
+ 		if rule.Action == "allow" {
+ 			s.router.AddRoute(matchRule, 1, s.AllowHandler(name))
++		} else if rule.Action == "optional" {
++			s.router.AddRoute(matchRule, 1, s.OptionalAuthHandler())
+ 		} else {
+ 			s.router.AddRoute(matchRule, 1, s.AuthHandler(rule.Provider, name))
+ 		}
+diff --git a/internal/config_test.go b/internal/config_test.go
+--- a/internal/config_test.go
++++ b/internal/config_test.go
+@@ -331,3 +331,3 @@
+ 	// Should validate rule
+-	assert.Equal("invalid rule action, must be \"auth\" or \"allow\"", logs[2].Message)
++	assert.Equal("invalid rule action, must be \"auth\", \"allow\" or \"optional\"", logs[2].Message)
+ 	assert.Equal(logrus.FatalLevel, logs[2].Level)
