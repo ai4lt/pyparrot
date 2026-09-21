@@ -1,8 +1,11 @@
 """Configuration management for PyParrot pipelines."""
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from urllib.parse import urlsplit
+from dotenv import set_key
+import re
 import yaml
 import getpass
 import bcrypt
@@ -61,8 +64,75 @@ class DockerConfig(BaseModel):
         }
 
 
+class OIDCConfig(BaseModel):
+    """Supported upstream Dex OIDC settings; secrets stay in the container env."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    issuer: str
+    clientID: str = Field(min_length=1)
+    clientSecret: str = Field(pattern=r"^\$[A-Za-z_][A-Za-z0-9_]*$")
+    scopes: List[str] = Field(default_factory=lambda: ["profile", "email"])
+    getUserInfo: bool = False
+    insecureSkipEmailVerified: bool = False
+
+    @field_validator("issuer")
+    @classmethod
+    def valid_issuer(cls, value):
+        url = urlsplit(value)
+        if (url.scheme not in ("http", "https") or not url.hostname
+                or url.username or url.password or url.query or url.fragment
+                or any(c.isspace() for c in value) or "$" in value):
+            raise ValueError("issuer must be an HTTP(S) URL without credentials, query or fragment")
+        return value
+
+    @field_validator("clientID")
+    @classmethod
+    def valid_client_id(cls, value):
+        if not value.strip() or ("$" in value and not re.fullmatch(r"\$[A-Za-z_][A-Za-z0-9_]*", value)):
+            raise ValueError("clientID must be a nonempty ID or $ENVIRONMENT_VARIABLE")
+        return value
+
+
+class OIDCConnector(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    type: Literal["oidc"] = "oidc"
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
+    name: str = Field(min_length=1)
+    config: OIDCConfig
+
+    @field_validator("id")
+    @classmethod
+    def reserve_local(cls, value):
+        if value == "local":
+            raise ValueError("connector id 'local' is reserved for local login")
+        return value
+
+    @field_validator("name")
+    @classmethod
+    def nonblank_name(cls, value):
+        if not value.strip():
+            raise ValueError("connector name must not be blank")
+        return value
+
+
+class AuthConfig(BaseModel):
+    """Additional login methods. Local password login is always enabled."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    connectors: List[OIDCConnector] = Field(default_factory=list)
+
+    @field_validator("connectors")
+    @classmethod
+    def unique_ids(cls, connectors):
+        ids = [connector.id for connector in connectors]
+        if len(ids) != len(set(ids)):
+            raise ValueError("connector IDs must be unique")
+        return connectors
+
+
 class PipelineConfig(BaseModel):
     """Complete pipeline configuration."""
+    auth: AuthConfig = Field(default_factory=AuthConfig)
     name: str = Field(description="Pipeline name")
     version: str = Field(default="1.0", description="Pipeline version")
     backends: str = Field(default="local", description="Backend integration mode: local, distributed, or external")
@@ -190,6 +260,7 @@ class PipelineConfig(BaseModel):
         hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=10)).decode('utf-8')
         
         env_file = dex_dir / "dex.env"
-        with open(env_file, "w") as f:
-            f.write(f"ADMIN_PASSHASH='{hashed_password}'\n")
+        env_file.touch(mode=0o600, exist_ok=True)
+        env_file.chmod(0o600)
+        set_key(str(env_file), "ADMIN_PASSHASH", hashed_password, quote_mode="always")
         env_file.chmod(0o600)  # Restrict permissions for security

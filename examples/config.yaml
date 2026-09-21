@@ -52,3 +52,18 @@ website_theme: defaulttheme
 
 # Development
 debug: false  # Mount ltfrontend code for live development
+
+# Optional OIDC login (local login always remains available).
+# Setup and credentials: docs/oidc-login.md
+# auth:
+#   connectors:
+#     - type: oidc
+#       id: shib
+#       name: KIT-Account (Shibboleth)
+#       config:
+#         issuer: https://oidc.scc.kit.edu/auth/realms/kit
+#         clientID: $SHIBBOLETH_CLIENT_ID
+#         clientSecret: $SHIBBOLETH_CLIENT_SECRET
+#         scopes: [profile, email]
+#         getUserInfo: true
+#         insecureSkipEmailVerified: true

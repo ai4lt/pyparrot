@@ -71,6 +71,8 @@ services:
       DEX_BASE_URL: "http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN_PORT:-${DOMAIN}}}"
       DEX_ISSUER: "http://${EXTERNAL_DOMAIN_PORT:-${DOMAIN_PORT:-${DOMAIN}}}"
 {% endif %}
+      DEX_EXPAND_ENV: "true"
+      DEX_CONTINUE_ON_CONNECTOR_FAILURE: "true"
       DEX_FRONTEND_DIR: "/srv/dex/frontend"
       DEX_THEME_NAME: "${FRONTEND_THEME:-defaulttheme}"
       TFA_CLIENT_SECRET: "${TFA_CLIENT_SECRET:-bar}"

@@ -290,6 +290,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         
         # Create configuration data
         config_data = {
+            "auth": yaml_config.get("auth", {}),
             "name": config_name,
             "type": type,
             "backends": backends,
@@ -361,12 +362,22 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         config_data["tts_backend_engine"] = tts_backend_engine
         config_data["llm_backend_engine"] = llm_backend_engine
 
+        # Validate authentication before changing generated files.
+        from .config import AuthConfig
+        from dotenv import dotenv_values
+        config_data["auth"] = AuthConfig.model_validate(config_data["auth"]).model_dump()
+
         # Prompt for admin password
         click.echo()
         admin_password = getpass.getpass(
             click.style("Enter admin password: ", fg="cyan"),
             stream=None
         )
+        existing_hash = dotenv_values(
+            config_subdir / "dex" / "dex.env", interpolate=False
+        ).get("ADMIN_PASSHASH")
+        if not admin_password and not existing_hash:
+            raise click.ClickException("An admin password is required to keep local login available.")
         if admin_password:
             config_data["admin_password"] = admin_password
         
@@ -529,38 +540,18 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         except Exception as e:
             logger.warning(f"Could not generate .env file: {e}")
 
-        # Generate traefik configuration files
-        if admin_password:
-            try:
-                # Get the hashed password from the config (saved to dex.env)
-                from .config import PipelineConfig as PC
-                config_instance = PC(**config_data)
-                # Extract the bcrypt hash
-                import bcrypt
-                password_bytes = admin_password.encode('utf-8')
-                hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=10)).decode('utf-8')
-                
-                template_manager.generate_traefik_files(
-                    config_name, 
-                    hashed_password, 
-                    str(config_subdir),
-                    enable_https=enable_https,
-                    acme_staging=acme_staging,
-                    acme_email=acme_email,
-                    force_https_redirect=force_https_redirect,
-                    domain=domain
-                )
-                logger.info(f"Generated traefik configuration files in {config_subdir}/traefik")
-                
-                # Generate dex configuration
-                template_manager.generate_dex_config(str(config_subdir))
-                logger.info(f"Generated dex configuration in {config_subdir}/dex")
-                
-                # Generate traefik rules
-                template_manager.generate_traefik_rules(str(config_subdir))
-                logger.info(f"Generated traefik rules in {config_subdir}/traefik")
-            except Exception as e:
-                logger.warning(f"Could not generate traefik/dex files: {e}")
+        # Always regenerate authentication, even when retaining the local password.
+        hashed_password = dotenv_values(
+            config_subdir / "dex" / "dex.env", interpolate=False
+        )["ADMIN_PASSHASH"]
+        template_manager.generate_traefik_files(
+            config_name, hashed_password, str(config_subdir),
+            enable_https=enable_https, acme_staging=acme_staging,
+            acme_email=acme_email, force_https_redirect=force_https_redirect,
+            domain=domain,
+        )
+        template_manager.generate_dex_config(str(config_subdir), pipeline_config.auth)
+        template_manager.generate_traefik_rules(str(config_subdir))
 
         logger.info(f"Created configuration for pipeline: {config_name} (type: {type})")
 
@@ -627,6 +618,7 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
 
         # Save configuration to the subdirectory
         config_file = config_subdir / f"{config_name}.yaml"
+        pipeline_config.admin_password = None
         pipeline_config.to_yaml(str(config_file))
         logger.info(f"Saved configuration to {config_file}")
         click.echo(f"\nConfiguration saved to {click.style(str(config_file), fg='green')}")

@@ -32,6 +32,17 @@ if [ -d "${THEME_HTML_DIR}" ]; then
   done
 fi
 
+# Missing optional provider credentials must not disable local login.
+# The generator emits only validated environment variable names in these comments.
+sed -n 's/^# oidc-required-env: //p' "${DEX_CONFIG_TEMPLATE}" | while IFS= read -r name; do
+  case "$name" in
+    ""|[0-9]*|*[!A-Za-z0-9_]*) continue ;;
+  esac
+  if [ -z "$(printenv "$name" || true)" ]; then
+    printf 'Warning: OIDC credential %s is missing; local login remains enabled.\n' "$name" >&2
+  fi
+done
+
 escape_sed_replacement() {
   printf '%s' "$1" | sed -e 's/[&|]/\\&/g'
 }

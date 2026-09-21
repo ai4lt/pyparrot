@@ -154,3 +154,11 @@ For Kafka setup and fresh-cluster migration from ZooKeeper, see [Kafka with KRaf
 `pyparrot build` automatically supplies the local mediator to dependent component builds. See [Local mediator builds](docs/local-qbmediator.md).
 
 Kafka client and broker version defaults, deployment overrides, and standalone compatibility are described in [Kafka version configuration](docs/kafka-versions.md).
+
+### Additional OIDC login providers
+
+Pipelines can offer OIDC providers such as KIT Shibboleth alongside **Local Login**.
+Configure `auth.connectors` in the pipeline YAML; Dex then shows a login-method
+selection page. Local password login always remains enabled. See
+[OIDC setup and parameters](docs/oidc-login.md) for client registration, credentials,
+and deployment instructions.

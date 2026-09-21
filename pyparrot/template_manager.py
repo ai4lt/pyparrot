@@ -11,6 +11,7 @@ import logging
 import subprocess
 import shutil
 from jinja2 import Template
+from .config import AuthConfig
 from .pipeline_types import get_pipeline_templates, has_pipeline_type, uses_slt, uses_url
 
 logger = logging.getLogger(__name__)
@@ -526,7 +527,7 @@ class TemplateManager:
             basicauth_file.chmod(0o644)
             logger.info(f"Generated basicauth file: {basicauth_file}")
 
-    def generate_dex_config(self, output_dir: str) -> None:
+    def generate_dex_config(self, output_dir: str, auth: Optional[AuthConfig] = None) -> None:
         """Generate dex configuration file from template.
         
         Args:
@@ -541,6 +542,26 @@ class TemplateManager:
             with open(dex_template_path, "r") as f:
                 dex_content = f.read()
             
+            auth = auth or AuthConfig()
+            if auth.connectors:
+                # Dex expands these references after parsing YAML, preserving secret characters.
+                connectors = [connector.model_dump() for connector in auth.connectors]
+                required_env = set()
+                for connector in connectors:
+                    config = connector["config"]
+                    config["redirectURI"] = "${DEX_BASE_URL}/dex/callback"
+                    for key in ("clientID", "clientSecret"):
+                        if config[key].startswith("$"):
+                            required_env.add(config[key][1:])
+                dex_content = dex_content.replace(
+                    "  skipApprovalScreen: true",
+                    "  skipApprovalScreen: true\n  alwaysShowLoginScreen: true",
+                )
+                dex_content += "\n" + yaml.safe_dump({"connectors": connectors}, sort_keys=False)
+                dex_content += "".join(
+                    f"# oidc-required-env: {name}\n" for name in sorted(required_env)
+                )
+
             dex_file = dex_dir / "dex.yaml"
             with open(dex_file, "w") as f:
                 f.write(dex_content)
