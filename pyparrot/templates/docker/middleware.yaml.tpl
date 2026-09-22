@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   traefik:
-    image: 'traefik'
+    image: '${TRAEFIK_IMAGE:?Set TRAEFIK_IMAGE in the deployment .env}'
 {% if environment.ENABLE_HTTPS == 'true' and not IS_LOCALHOST_DOMAIN %}
     user: '${HOST_UID:-0}:${HOST_GID:-0}'
     cap_add:

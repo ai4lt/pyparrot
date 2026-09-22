@@ -46,6 +46,8 @@ def prepare_versions(directory):
     values = deployment_versions(existing, existing.get('PIPELINE_NAME') or directory.name)
     config = yaml.safe_load(compose_path.read_text())
     configure_kafka_builds(config)
+    if 'traefik' in config.get('services', {}):
+        config['services']['traefik']['image'] = '${TRAEFIK_IMAGE:?Set TRAEFIK_IMAGE in the deployment .env}'
     if 'kafka' in config.get('services', {}):
         config['services']['kafka']['image'] = '${KAFKA_IMAGE:?Set KAFKA_IMAGE in the deployment .env}'
     text = env_path.read_text().rstrip('\n') + '\n'
