@@ -202,6 +202,10 @@ class TemplateManager:
         
         components = get_pipeline_templates(pipeline_type)
         composed = self.merge_templates(components, domain, debug, enable_https, acme_staging)
+        # Video context is a pipeline capability, independent of slide sharing.
+        composed["services"]["streamingasr"]["environment"].append(
+            "USE_VIDEO_CONTEXT=" + ("true" if pipeline_type in ("BOOM", "BOOM-light") else "false")
+        )
         
         # Add backend services for local/distributed modes
         if backends_mode in ["local", "distributed"]:

@@ -102,3 +102,10 @@ def test_real_domain_excludes_extra_hosts():
     tfa_service = services.get("traefik-forward-auth")
     assert tfa_service is not None, "traefik-forward-auth service not found"
     assert "extra_hosts" not in tfa_service, "extra_hosts should not be present for real domain"
+
+
+@pytest.mark.parametrize('pipeline_type', ['BOOM', 'BOOM-light', 'end2end', 'cascaded', 'LT.2025', 'dialog'])
+def test_video_context_is_only_enabled_for_boom(pipeline_type):
+    environment = _services_for(pipeline_type)['streamingasr']['environment']
+    expected = 'true' if pipeline_type in ('BOOM', 'BOOM-light') else 'false'
+    assert f'USE_VIDEO_CONTEXT={expected}' in environment
