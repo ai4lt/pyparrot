@@ -207,6 +207,11 @@ class TemplateManager:
             "USE_VIDEO_CONTEXT=" + ("true" if pipeline_type in ("BOOM", "BOOM-light") else "false")
         )
         
+        video_slide_sync = pipeline_type in ("BOOM", "BOOM-light")
+        composed["services"]["ltapi"]["environment"].append(
+            "VIDEO_SLIDE_SYNC=" + str(video_slide_sync).lower()
+        )
+
         # Add backend services for local/distributed modes
         if backends_mode in ["local", "distributed"]:
             if uses_url(pipeline_type, "stt"):
