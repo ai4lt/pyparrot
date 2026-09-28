@@ -1,0 +1,6 @@
+fastapi==0.115.12
+uvicorn==0.34.2
+open_clip_torch==2.32.0
+timm==1.0.15
+Pillow==11.2.1
+numpy==2.2.5

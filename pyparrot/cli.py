@@ -123,6 +123,11 @@ def main():
 @click.option("--mt-backend-url", default=None, help="External MT backend URL (when backends=external)")
 @click.option("--tts-backend-url", default=None, help="External TTS backend URL (when backends=external)")
 @click.option("--summarizer-backend-url", default=None, help="External Summarizer backend URL")
+@click.option("--image-embedding-backend-url", default=None, help="Image embedding backend url")
+@click.option("--image-embedding-backend-engine", type=click.Choice(["siglip"]), default=None, help="Image embedding backend engine")
+@click.option("--image-embedding-backend-model", default=None, help="Image embedding backend model")
+@click.option("--image-embedding-backend-pretrained", default=None, help="Image embedding backend pretrained")
+@click.option("--image-embedding-backend-gpu", default=None, help="Image embedding backend gpu")
 @click.option("--slide-translator-url", default=None, help="External Slide Translator backend URL")
 @click.option("--text-structurer-online-url", default=None, help="External Text Structurer online model URL")
 @click.option("--text-structurer-offline-url", default=None, help="External Text Structurer offline model URL")
@@ -167,7 +172,7 @@ def main():
 @click.option("--acme-staging", is_flag=True, help="Use Let's Encrypt staging server (for testing, avoids rate limits)")
 @click.option("--force-https-redirect", is_flag=True, help="Redirect all HTTP traffic to HTTPS")
 @click.option("--debug", is_flag=True, help="Enable debug mode: mount ltfrontend code for live development")
-def configure(config_name, config, type, backends, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, slide_translator_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, summarizer_backend_engine, summarizer_backend_model, summarizer_backend_gpu, text_structurer_backend_engine, text_structurer_backend_model, text_structurer_backend_gpu, slide_translator_engine, slide_translator_model, slide_translator_gpu, llm_backend_engine, llm_backend_model, llm_backend_quantization, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, chat_bots_config_dir, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
+def configure(config_name, config, type, backends, image_embedding_backend_url, image_embedding_backend_engine, image_embedding_backend_model, image_embedding_backend_pretrained, image_embedding_backend_gpu, stt_backend_url, mt_backend_url, tts_backend_url, summarizer_backend_url, slide_translator_url, text_structurer_online_url, text_structurer_offline_url, llm_backend_url, stt_backend_engine, stt_backend_model, stt_backend_gpu, mt_backend_engine, mt_backend_model, mt_backend_gpu, tts_backend_engine, tts_backend_gpu, summarizer_backend_engine, summarizer_backend_model, summarizer_backend_gpu, text_structurer_backend_engine, text_structurer_backend_model, text_structurer_backend_gpu, slide_translator_engine, slide_translator_model, slide_translator_gpu, llm_backend_engine, llm_backend_model, llm_backend_quantization, llm_backend_gpu, port, external_port, external_https_port, domain, website_theme, hf_token, chat_bots_config_dir, enable_https, https_port, acme_email, acme_staging, force_https_redirect, debug):
     """Configure a new pipeline and create its configuration directory."""
     try:
         # Load YAML configuration if provided
@@ -199,6 +204,11 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         mt_backend_url = get_value('mt_backend_url', mt_backend_url)
         tts_backend_url = get_value('tts_backend_url', tts_backend_url)
         summarizer_backend_url = get_value('summarizer_backend_url', summarizer_backend_url)
+        image_embedding_backend_url = get_value('image_embedding_backend_url', image_embedding_backend_url)
+        image_embedding_backend_engine = get_value('image_embedding_backend_engine', image_embedding_backend_engine)
+        image_embedding_backend_model = get_value('image_embedding_backend_model', image_embedding_backend_model)
+        image_embedding_backend_pretrained = get_value('image_embedding_backend_pretrained', image_embedding_backend_pretrained)
+        image_embedding_backend_gpu = get_value('image_embedding_backend_gpu', image_embedding_backend_gpu)
         slide_translator_url = get_value('slide_translator_url', slide_translator_url)
         text_structurer_online_url = get_value('text_structurer_online_url', text_structurer_online_url)
         text_structurer_offline_url = get_value('text_structurer_offline_url', text_structurer_offline_url)
@@ -288,6 +298,11 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
                 type=str
             )
         
+        if image_embedding_backend_engine not in (None, "siglip"):
+            raise click.BadParameter("Image embedding backend engine must be siglip")
+        if uses_url(type, "image_embedding") and backends == "external" and image_embedding_backend_engine and not image_embedding_backend_url:
+            raise click.BadParameter("External image embeddings require --image-embedding-backend-url")
+
         # Create configuration data
         config_data = {
             "auth": yaml_config.get("auth", {}),
@@ -300,6 +315,11 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
             "mt_backend_url": mt_backend_url,
             "tts_backend_url": tts_backend_url,
             "summarizer_backend_url": summarizer_backend_url,
+            "image_embedding_backend_url": image_embedding_backend_url,
+            "image_embedding_backend_engine": image_embedding_backend_engine,
+            "image_embedding_backend_model": image_embedding_backend_model,
+            "image_embedding_backend_pretrained": image_embedding_backend_pretrained,
+            "image_embedding_backend_gpu": image_embedding_backend_gpu,
             "slide_translator_url": slide_translator_url,
             "text_structurer_online_url": text_structurer_online_url,
             "text_structurer_offline_url": text_structurer_offline_url,
@@ -472,6 +492,9 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
                 mt_backend_gpu=mt_backend_gpu,
                 tts_backend_engine=tts_backend_engine,
                 tts_backend_gpu=tts_backend_gpu,
+                image_embedding_backend_url=image_embedding_backend_url,
+                image_embedding_backend_engine=image_embedding_backend_engine,
+                image_embedding_backend_gpu=image_embedding_backend_gpu,
                 llm_backend_engine=llm_backend_engine,
                 llm_backend_gpu=llm_backend_gpu,
                 repo_root=repo_root,
@@ -506,6 +529,11 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
                 mt_backend_url=mt_backend_url,
                 tts_backend_url=tts_backend_url,
                 summarizer_backend_url=summarizer_backend_url,
+                image_embedding_backend_url=image_embedding_backend_url,
+                image_embedding_backend_engine=image_embedding_backend_engine,
+                image_embedding_backend_model=image_embedding_backend_model,
+                image_embedding_backend_pretrained=image_embedding_backend_pretrained,
+                image_embedding_backend_gpu=image_embedding_backend_gpu,
                 slide_translator_url=slide_translator_url,
                 text_structurer_online_url=text_structurer_online_url,
                 text_structurer_offline_url=text_structurer_offline_url,
@@ -560,6 +588,8 @@ def configure(config_name, config, type, backends, stt_backend_url, mt_backend_u
         click.echo(f"  Name: {config_name}")
         click.echo(f"  Type: {type}")
         click.echo(f"  Backends: {backends}")
+        if uses_url(type, "image_embedding") and (image_embedding_backend_url or image_embedding_backend_engine):
+            click.echo(f"  Image embedding backend: {image_embedding_backend_url or image_embedding_backend_engine}")
         if config_data.get("backend_components"):
             click.echo(f"  Required backend components: {', '.join(config_data['backend_components'])}")
         if uses_url(type, "stt") and stt_backend_url:

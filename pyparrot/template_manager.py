@@ -175,7 +175,10 @@ class TemplateManager:
                              tts_backend_engine: str = None, tts_backend_gpu: str = None,
                              llm_backend_engine: str = None, llm_backend_gpu: str = None,
                              repo_root: str = None, enable_https: bool = False, debug: bool = False,
-                             acme_staging: bool = False) -> Dict[str, Any]:
+                             acme_staging: bool = False,
+                             image_embedding_backend_url: str = None,
+                             image_embedding_backend_engine: str = None,
+                             image_embedding_backend_gpu: str = None) -> Dict[str, Any]:
         """Generate docker-compose configuration for a pipeline type.
         
         Args:
@@ -260,6 +263,21 @@ class TemplateManager:
             else:
                 logger.info("LLM backend not required for this pipeline type")
         
+        if uses_url(pipeline_type, "image_embedding"):
+            if image_embedding_backend_engine not in (None, "siglip"):
+                raise ValueError("Unsupported image embedding backend engine")
+            if backends_mode == "external" and image_embedding_backend_engine and not image_embedding_backend_url:
+                raise ValueError("External image embeddings require a backend URL")
+            if (backends_mode in ("local", "distributed") and image_embedding_backend_engine
+                    and not image_embedding_backend_url):
+                backend = self._load_backend_compose(
+                    image_embedding_backend_engine, image_embedding_backend_gpu,
+                    repo_root or str(Path(__file__).resolve().parent.parent),
+                    backend_type="image_embedding")
+                if not backend:
+                    raise ValueError("Image embedding backend compose file not found")
+                self._merge_services(composed, backend)
+
         from .versions import configure_kafka_builds
         return configure_kafka_builds(composed)
 
@@ -282,6 +300,7 @@ class TemplateManager:
             "tts-kokoro": "tts-kokoro",
             "huggingface-tgi": "huggingface-tgi",
             "omnifusion": "omnifusion_pyparrot",
+            "siglip": "image-embeddings",
         }
         
         if backend_engine not in backend_dirs:
@@ -424,7 +443,9 @@ class TemplateManager:
 
                 # Modify GPU settings if provided
                 # For vllm backend, only apply to vllm-server service, not vllm service
-                should_apply_gpu = gpu_device is not None and not (backend_engine == "vllm" and "vllm" in service_name and "vllm-server" not in service_name)
+                if backend_type == "image_embedding" and gpu_device is not None:
+                    service["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] = str(gpu_device).split(",")
+                should_apply_gpu = backend_type != "image_embedding" and gpu_device is not None and not (backend_engine == "vllm" and "vllm" in service_name and "vllm-server" not in service_name)
                 if should_apply_gpu:
                     if "environment" in service:
                         # Handle environment as list (YAML format with dashes)
@@ -632,7 +653,13 @@ class TemplateManager:
                          acme_staging: bool = False, force_https_redirect: bool = False,
                          slide_support: bool = False,
                          pipeline_type: str = None,
-                         debug: bool = False) -> None:
+                         debug: bool = False,
+                         image_embedding_backend_url: str = None,
+                         image_embedding_backend_engine: str = None,
+                         image_embedding_backend_model: str = None,
+                         image_embedding_backend_pretrained: str = None,
+                         image_embedding_backend_gpu: str = None,
+                         ) -> None:
         """Generate .env file for docker-compose with environment variables.
         
         Args:
@@ -805,6 +832,21 @@ class TemplateManager:
 
             if should_write_text_structurer_offline and text_structurer_offline_url:
                 f.write(f"TEXT_STRUCTURER_OFFLINE_URL={text_structurer_offline_url}\n")
+
+            if uses_url(pipeline_type, "image_embedding"):
+                embedding_url = image_embedding_backend_url
+                if not embedding_url and backends in ("local", "distributed") and image_embedding_backend_engine == "siglip":
+                    embedding_url = "http://image-embeddings:8010"
+                if embedding_url:
+                    f.write(f"IMAGE_EMBEDDING_BACKEND_URL={embedding_url}\n")
+                for key, value in {
+                    "ENGINE": image_embedding_backend_engine,
+                    "MODEL": image_embedding_backend_model,
+                    "PRETRAINED": image_embedding_backend_pretrained,
+                    "GPU": image_embedding_backend_gpu,
+                }.items():
+                    if value is not None:
+                        f.write(f"IMAGE_EMBEDDING_BACKEND_{key}={value}\n")
 
             if should_write_slide_translator and slide_translator_url:
                 f.write(f"SLIDE_TRANSLATOR_URL={slide_translator_url}\n")
